@@ -3,6 +3,7 @@ import type { PaneType } from 'obsidian';
 import type { Priority, Task, Quadrant as QuadrantKind } from '../core/types.ts';
 import { QUADRANTS } from '../core/types.ts';
 import { Quadrant } from './Quadrant.tsx';
+import type { DependencySelection } from './TaskCard.tsx';
 import type { InlineLinkTarget } from './inlineMarkdown.tsx';
 
 type Props = {
@@ -23,6 +24,7 @@ type Props = {
     text: string,
     contextTags: string[],
     options: { dueDate: string | null; priority: Priority | null },
+    dependencies: DependencySelection,
   ) => Promise<void>;
   onAddTask: (input: {
     text: string;

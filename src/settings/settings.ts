@@ -37,6 +37,12 @@ export type PluginSettings = {
    * skryjí, editace zůstává plná. Přepíná se v hlavičce. Persistované.
    */
   compactMode: boolean;
+  /** Zobrazí potvrzení před uzavřením blokovaného úkolu. */
+  warnWhenCompletingBlockedTask: boolean;
+  /** Řadí blokátory před úkoly, které na ně čekají. */
+  respectTaskDependenciesWhenSorting: boolean;
+  /** Skryje úkoly, které čekají na alespoň jeden otevřený blokátor. */
+  hideBlockedTasks: boolean;
   /**
    * Kanban režim (desktop i mobil/tablet): pokud je nastaven kvadrant, ten se rozbalí
    * na celou šířku se 4 status-sloupci (To-do / In progress / Scheduled /
@@ -64,5 +70,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   dailySectionHeading: '# Today',
   headerCollapsed: false,
   compactMode: false,
+  warnWhenCompletingBlockedTask: true,
+  respectTaskDependenciesWhenSorting: true,
+  hideBlockedTasks: false,
   kanbanQuadrant: null,
 };

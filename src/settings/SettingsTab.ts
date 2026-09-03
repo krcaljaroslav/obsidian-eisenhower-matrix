@@ -26,6 +26,13 @@ const DAILY_HEADING_DESC =
 const EXCLUDED_NAME = 'Excluded folders';
 const EXCLUDED_DESC = 'Tasks from these folders are hidden from the matrix.';
 
+const WARN_BLOCKED_NAME = 'Warn when completing a blocked task';
+const WARN_BLOCKED_DESC = 'Ask for confirmation before completing a task with unfinished dependencies.';
+const RESPECT_DEPENDENCIES_NAME = 'Respect task dependencies when sorting';
+const RESPECT_DEPENDENCIES_DESC = 'Place blocking tasks before the tasks that depend on them.';
+const HIDE_BLOCKED_NAME = 'Hide blocked tasks';
+const HIDE_BLOCKED_DESC = 'Hide tasks that have at least one unfinished dependency.';
+
 const RESET_NAME = 'Reset to defaults';
 const RESET_DESC =
   'Clears overrides — daily folder falls back to the core config, excluded folders are emptied.';
@@ -67,6 +74,21 @@ export class MatrixSettingsTab extends PluginSettingTab {
           key: 'dailySectionHeading',
           placeholder: DEFAULT_DAILY_HEADING,
         },
+      },
+      {
+        name: WARN_BLOCKED_NAME,
+        desc: WARN_BLOCKED_DESC,
+        control: { type: 'toggle', key: 'warnWhenCompletingBlockedTask' },
+      },
+      {
+        name: RESPECT_DEPENDENCIES_NAME,
+        desc: RESPECT_DEPENDENCIES_DESC,
+        control: { type: 'toggle', key: 'respectTaskDependenciesWhenSorting' },
+      },
+      {
+        name: HIDE_BLOCKED_NAME,
+        desc: HIDE_BLOCKED_DESC,
+        control: { type: 'toggle', key: 'hideBlockedTasks' },
       },
       {
         type: 'list',
@@ -121,6 +143,12 @@ export class MatrixSettingsTab extends PluginSettingTab {
         return this.plugin.settings.dailyFolderOverride;
       case 'dailySectionHeading':
         return this.plugin.settings.dailySectionHeading;
+      case 'warnWhenCompletingBlockedTask':
+        return this.plugin.settings.warnWhenCompletingBlockedTask;
+      case 'respectTaskDependenciesWhenSorting':
+        return this.plugin.settings.respectTaskDependenciesWhenSorting;
+      case 'hideBlockedTasks':
+        return this.plugin.settings.hideBlockedTasks;
       default:
         return undefined;
     }
@@ -133,14 +161,20 @@ export class MatrixSettingsTab extends PluginSettingTab {
    * konfiguraci až do restartu.
    */
   async setControlValue(key: string, value: unknown): Promise<void> {
-    if (typeof value !== 'string') return;
-
     switch (key) {
       case 'dailyFolderOverride':
+        if (typeof value !== 'string') return;
         await this.setDailyFolderOverride(value);
         break;
       case 'dailySectionHeading':
+        if (typeof value !== 'string') return;
         await this.setDailySectionHeading(value);
+        break;
+      case 'warnWhenCompletingBlockedTask':
+      case 'respectTaskDependenciesWhenSorting':
+      case 'hideBlockedTasks':
+        if (typeof value !== 'boolean') return;
+        await this.setBooleanSetting(key, value);
         break;
       default:
         break;
@@ -169,6 +203,9 @@ export class MatrixSettingsTab extends PluginSettingTab {
         dailyFolderOverride: this.plugin.settings.dailyFolderOverride,
         dailySectionHeading: this.plugin.settings.dailySectionHeading,
         excludedFolders: this.plugin.settings.excludedFolders,
+        warnWhenCompletingBlockedTask: this.plugin.settings.warnWhenCompletingBlockedTask,
+        respectTaskDependenciesWhenSorting: this.plugin.settings.respectTaskDependenciesWhenSorting,
+        hideBlockedTasks: this.plugin.settings.hideBlockedTasks,
       };
       try {
         change();
@@ -213,6 +250,15 @@ export class MatrixSettingsTab extends PluginSettingTab {
     });
   }
 
+  private async setBooleanSetting(
+    key: 'warnWhenCompletingBlockedTask' | 'respectTaskDependenciesWhenSorting' | 'hideBlockedTasks',
+    value: boolean,
+  ): Promise<void> {
+    await this.mutate(() => {
+      this.plugin.settings[key] = value;
+    });
+  }
+
   private async addExcludedFolder(path: string): Promise<'added' | 'duplicate' | 'failed'> {
     const value = path.trim();
     if (!value) return 'failed';
@@ -252,6 +298,9 @@ export class MatrixSettingsTab extends PluginSettingTab {
     await this.mutate(() => {
       this.plugin.settings.dailyFolderOverride = '';
       this.plugin.settings.excludedFolders = [];
+      this.plugin.settings.warnWhenCompletingBlockedTask = DEFAULT_SETTINGS.warnWhenCompletingBlockedTask;
+      this.plugin.settings.respectTaskDependenciesWhenSorting = DEFAULT_SETTINGS.respectTaskDependenciesWhenSorting;
+      this.plugin.settings.hideBlockedTasks = DEFAULT_SETTINGS.hideBlockedTasks;
     });
   }
 
@@ -297,6 +346,8 @@ export class MatrixSettingsTab extends PluginSettingTab {
           }),
       );
 
+    this.renderDependencyToggles(containerEl);
+
     // === Excluded folders ===
     this.renderExcludedFoldersSection(containerEl);
 
@@ -314,6 +365,22 @@ export class MatrixSettingsTab extends PluginSettingTab {
             this.display();
           }),
       );
+  }
+
+  private renderDependencyToggles(parent: HTMLElement): void {
+    const toggles = [
+      [WARN_BLOCKED_NAME, WARN_BLOCKED_DESC, 'warnWhenCompletingBlockedTask'],
+      [RESPECT_DEPENDENCIES_NAME, RESPECT_DEPENDENCIES_DESC, 'respectTaskDependenciesWhenSorting'],
+      [HIDE_BLOCKED_NAME, HIDE_BLOCKED_DESC, 'hideBlockedTasks'],
+    ] as const;
+
+    for (const [name, desc, key] of toggles) {
+      new Setting(parent).setName(name).setDesc(desc).addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings[key]).onChange(async (value) => {
+          await this.setBooleanSetting(key, value);
+        }),
+      );
+    }
   }
 
   /**

@@ -137,6 +137,26 @@ describe('parseTaskLine — non-standard statuses', () => {
   });
 });
 
+describe('parseTaskLine — task metadata', () => {
+  it('extracts id and a deduplicated blocked-by list from text', () => {
+    const parsed = parseTaskLine('- [ ] #DO Draft proposal 🆔 draft-1 ⛔ brief, review_2,brief', 4);
+
+    expect(parsed).toMatchObject({
+      text: 'Draft proposal',
+      id: 'draft-1',
+      blockedBy: ['brief', 'review_2'],
+      trailingTokens: [],
+    });
+  });
+
+  it('defaults blockedBy and trailingTokens to empty arrays', () => {
+    const parsed = parseTaskLine('- [ ] plain task', 0);
+
+    expect(parsed?.blockedBy).toEqual([]);
+    expect(parsed?.trailingTokens).toEqual([]);
+  });
+});
+
 describe('setDueDateOnLine', () => {
   it('adds 📅 when none', () => {
     const r = setDueDateOnLine('- [ ] #DO hello', '2026-05-20');
@@ -218,6 +238,58 @@ describe('updateLineTextAndTags', () => {
       ['Osobní', '#osobní', '#Work'],
     );
     expect(r.newLine).toBe('- [ ] #DO #Osobní #Work hello');
+  });
+
+  it('round-trips dependency metadata and named Tasks tokens', () => {
+    const original =
+      '- [ ] #DO 📅 2026-06-01 🛫 2026-05-10 Send draft ⏳ 2026-05-20 ➕ 2026-05-01 🔁 every week 🏁 keep ❌ 2026-05-30 🧩 future value 🆔 draft1 ⛔ brief,review,brief';
+    const parsedBefore = parseTaskLine(original, 0)!;
+    const updated = updateLineTextAndTags(
+      original,
+      parsedBefore.text,
+      parsedBefore.contextTags,
+    ).newLine;
+    const parsedAfter = parseTaskLine(updated, 0)!;
+
+    expect(parsedAfter.id).toBe(parsedBefore.id);
+    expect(parsedAfter.blockedBy).toEqual(parsedBefore.blockedBy);
+    expect(parsedAfter.trailingTokens).toEqual(parsedBefore.trailingTokens);
+    expect(parsedAfter.trailingTokens).toEqual([
+      '⏳ 2026-05-20',
+      '➕ 2026-05-01',
+      '🔁 every week',
+      '🏁 keep',
+      '❌ 2026-05-30 🧩 future value',
+    ]);
+  });
+
+  it('can replace dependency metadata while preserving the rest of the task', () => {
+    const updated = updateLineTextAndTags(
+      '- [ ] #DO Draft 🆔 old-id ⛔ first,second',
+      'Draft',
+      [],
+      { id: 'new-id', blockedBy: ['third'] },
+    ).newLine;
+
+    expect(updated).toBe('- [ ] #DO Draft 🆔 new-id ⛔ third');
+  });
+
+  it('builds a task line with preserved metadata before the done date', () => {
+    expect(
+      buildTaskLine(
+        'DO',
+        'finished',
+        '2026-05-14',
+        null,
+        null,
+        'x',
+        'task-1',
+        ['blocker_a', 'blocker-b'],
+        ['⏳ 2026-05-15'],
+      ),
+    ).toBe(
+      '- [x] #DO 🛫 2026-05-14 finished ⏳ 2026-05-15 🆔 task-1 ⛔ blocker_a,blocker-b ✅ 2026-05-14',
+    );
   });
 });
 

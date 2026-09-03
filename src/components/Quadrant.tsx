@@ -3,7 +3,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { type PaneType } from 'obsidian';
 import type { Priority, Quadrant as QuadrantKind, Task } from '../core/types.ts';
 import { QUADRANT_META } from '../core/types.ts';
-import { TaskCard } from './TaskCard.tsx';
+import { TaskCard, type DependencySelection } from './TaskCard.tsx';
 import { AddTaskInput } from './AddTaskInput.tsx';
 import { Icon } from './Icon.tsx';
 import type { InlineLinkTarget } from './inlineMarkdown.tsx';
@@ -27,6 +27,7 @@ type Props = {
     text: string,
     contextTags: string[],
     options: { dueDate: string | null; priority: Priority | null },
+    dependencies: DependencySelection,
   ) => Promise<void>;
   onAddTask: (input: {
     text: string;
@@ -148,7 +149,9 @@ export function Quadrant({
                     onToggle={() => onToggleTask(t)}
                     onSetStatus={(s) => onSetStatus(t, s)}
                     onSetDueDate={(d) => onSetDueDate(t, d)}
-                    onUpdateTask={(text, tags, opts) => onUpdateTask(t, text, tags, opts)}
+                    onUpdateTask={(text, tags, opts, dependencies) =>
+                      onUpdateTask(t, text, tags, opts, dependencies)
+                    }
                     onOpenSource={(mode) => onOpenSource(t, mode)}
                     onOpenLink={(link) => onOpenLink(t, link)}
                     onMoveQuadrant={(target) => onMoveQuadrant(t, target)}

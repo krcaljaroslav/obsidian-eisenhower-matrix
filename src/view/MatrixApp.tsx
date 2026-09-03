@@ -16,13 +16,14 @@ import {
   type Modifier,
 } from '@dnd-kit/core';
 import type { ObsidianTaskRepo } from '../obsidian-adapter/ObsidianTaskRepo.ts';
-import { showError } from '../obsidian-adapter/toast.ts';
+import { showError, showInfo } from '../obsidian-adapter/toast.ts';
 import type { Priority, Quadrant, Task } from '../core/types.ts';
 import { QUADRANTS, isClosedStatus } from '../core/types.ts';
 import {
   extractAllContextTags,
   formatDateISO,
   makeCompareTask,
+  sortTasksByDependencies,
   matchesDueFilter,
   matchesFilter,
   UNTAGGED_FILTER,
@@ -32,7 +33,13 @@ import { Matrix } from '../components/Matrix.tsx';
 import { KanbanView } from '../components/KanbanView.tsx';
 import { FilterBar } from '../components/FilterBar.tsx';
 import { DateNav } from '../components/DateNav.tsx';
-import { TaskCardOverlay, GRACE_MS } from '../components/TaskCard.tsx';
+import {
+  DependencyNavigationContext,
+  TaskEditingContext,
+  TaskCardOverlay,
+  GRACE_MS,
+  type DependencySelection,
+} from '../components/TaskCard.tsx';
 import type { InlineLinkTarget } from '../components/inlineMarkdown.tsx';
 import { TagSuggest } from '../components/TagSuggest.ts';
 import type EisenhowerMatrixPlugin from '../../main.ts';
@@ -45,6 +52,22 @@ type Props = {
 
 function taskKey(sourceFile: string, lineIndex: number): string {
   return `${sourceFile}:${lineIndex}`;
+}
+
+function showUnblockedTasks(task: Task): void {
+  const unblockedCount = task.blocksTasks.filter((dependent) =>
+    dependent.blockedByTasks.every(
+      (blocker) => blocker === task || isClosedStatus(blocker.status),
+    ),
+  ).length;
+  if (unblockedCount > 0) {
+    showInfo(`Unblocked ${unblockedCount} ${unblockedCount === 1 ? 'task' : 'tasks'}`);
+  }
+}
+
+function confirmBlockedCompletion(app: App, task: Task): boolean {
+  const message = `"${task.text}" is not finished yet. Complete this task anyway?`;
+  return app.workspace.containerEl.ownerDocument.defaultView?.confirm(message) ?? false;
 }
 
 /**
@@ -104,6 +127,7 @@ const cursorFirstCollisionDetection: CollisionDetection = (args) => {
 };
 
 export function MatrixApp({ app, repo, plugin }: Props) {
+  const appRootRef = useRef<HTMLDivElement>(null);
   const today = useMemo(() => formatDateISO(new Date()), []);
   const [date, setDate] = useState<string>(today);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -111,6 +135,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   const [scannedFiles, setScannedFiles] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const dependencyHighlightTimerRef = useRef<number | null>(null);
   const [existingDates, setExistingDates] = useState<Set<string>>(() => new Set());
 
   // Settings (persisted)
@@ -288,15 +313,22 @@ export function MatrixApp({ app, repo, plugin }: Props) {
     async (task: Task) => {
       // Z [x]/[-] zpátky na [ ], jinak na [x] — zrcadlí toggleLine v core.
       const newStatus = isClosedStatus(task.status) ? ' ' : 'x';
+      if (
+        !isClosedStatus(task.status) &&
+        task.isBlocked &&
+        plugin.settings.warnWhenCompletingBlockedTask &&
+        !confirmBlockedCompletion(app, task)
+      ) return;
       applyLocalStatus(task.sourceFile, task.lineIndex, newStatus);
       try {
         await repo.toggleTask(task.sourceFile, task.lineIndex, today);
+        if (isClosedStatus(newStatus)) showUnblockedTasks(task);
       } catch (e) {
         applyLocalStatus(task.sourceFile, task.lineIndex, task.status);
         showError(`Toggle failed: ${String((e as Error).message ?? e)}`);
       }
     },
-    [repo, today, applyLocalStatus],
+    [repo, today, applyLocalStatus, plugin, app],
   );
 
   const handleSetDueDate = useCallback(
@@ -313,17 +345,25 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   const handleSetStatus = useCallback(
     async (task: Task, newStatus: string) => {
       const previousStatus = task.status;
+      if (
+        !isClosedStatus(previousStatus) &&
+        isClosedStatus(newStatus) &&
+        task.isBlocked &&
+        plugin.settings.warnWhenCompletingBlockedTask &&
+        !confirmBlockedCompletion(app, task)
+      ) return;
       // Stejný optimistic flow jako u toggle — pro [x]/[-] nastartuje
       // 3s grace s undo, ostatní stavy se promítnou rovnou.
       applyLocalStatus(task.sourceFile, task.lineIndex, newStatus);
       try {
         await repo.setStatus(task.sourceFile, task.lineIndex, newStatus, today);
+        if (isClosedStatus(newStatus)) showUnblockedTasks(task);
       } catch (e) {
         applyLocalStatus(task.sourceFile, task.lineIndex, previousStatus);
         showError(`Changing status failed: ${String((e as Error).message ?? e)}`);
       }
     },
-    [repo, today, applyLocalStatus],
+    [repo, today, applyLocalStatus, plugin, app],
   );
 
   const handleUpdate = useCallback(
@@ -332,9 +372,10 @@ export function MatrixApp({ app, repo, plugin }: Props) {
       text: string,
       contextTags: string[],
       options: { dueDate: string | null; priority: Priority | null },
+      dependencies: DependencySelection,
     ) => {
       try {
-        await repo.updateTask(task.sourceFile, task.lineIndex, text, contextTags, options);
+        await repo.updateTask(task, text, contextTags, options, dependencies);
       } catch (e) {
         showError(`Save failed: ${String((e as Error).message ?? e)}`);
         throw e;
@@ -384,6 +425,41 @@ export function MatrixApp({ app, repo, plugin }: Props) {
     [app],
   );
 
+  const handleNavigateToDependency = useCallback(
+    (target: Task) => {
+      const targetKey = taskKey(target.sourceFile, target.lineIndex);
+      const targetCard = Array.from(
+        appRootRef.current?.querySelectorAll<HTMLElement>('[data-task-key]') ?? [],
+      ).find((card) => card.dataset.taskKey === targetKey);
+      if (!targetCard) {
+        handleOpenSource(target);
+        return;
+      }
+
+      targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      targetCard.classList.remove('em-task-highlight');
+      void targetCard.offsetWidth;
+      targetCard.classList.add('em-task-highlight');
+      if (dependencyHighlightTimerRef.current !== null) {
+        window.clearTimeout(dependencyHighlightTimerRef.current);
+      }
+      dependencyHighlightTimerRef.current = window.setTimeout(() => {
+        targetCard.classList.remove('em-task-highlight');
+        dependencyHighlightTimerRef.current = null;
+      }, 1500);
+    },
+    [handleOpenSource],
+  );
+
+  useEffect(
+    () => () => {
+      if (dependencyHighlightTimerRef.current !== null) {
+        window.clearTimeout(dependencyHighlightTimerRef.current);
+      }
+    },
+    [],
+  );
+
   // Klik na [[wikilink]] / [text](url) v textu tasku. Interní odkazy řeší
   // Obsidian přes openLinkText (rozlišuje relativně vůči zdrojovému souboru
   // tasku, včetně #headingů a aliasů); externí URL otevřeme v prohlížeči.
@@ -406,6 +482,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   const visibleTasks = useMemo(
     () =>
       tasks.filter((t) => {
+        if (plugin.settings.hideBlockedTasks && t.isBlocked) return false;
         if (!matchesFilter(t, selectedTags)) return false;
         if (!matchesDueFilter(t, dueFilter, today, date)) return false;
         if (showCompleted) return true;
@@ -414,12 +491,14 @@ export function MatrixApp({ app, repo, plugin }: Props) {
         if (!isClosedStatus(t.status)) return true;
         return graceMap.has(taskKey(t.sourceFile, t.lineIndex));
       }),
-    [tasks, selectedTags, dueFilter, today, date, showCompleted, graceMap],
+    [tasks, selectedTags, dueFilter, today, date, showCompleted, graceMap, plugin],
   );
 
   const sortedVisibleTasks = useMemo(
-    () => [...visibleTasks].sort(makeCompareTask(today)),
-    [visibleTasks, today],
+    () => plugin.settings.respectTaskDependenciesWhenSorting
+      ? sortTasksByDependencies(visibleTasks, today)
+      : [...visibleTasks].sort(makeCompareTask(today)),
+    [visibleTasks, today, plugin],
   );
 
   const availableTags = useMemo(
@@ -649,7 +728,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
       onDragStart={onDragStart}
       onDragEnd={(e) => void onDragEnd(e)}
     >
-      <div className="em-app">
+      <div ref={appRootRef} className="em-app">
         {headerCollapsed ? (
           <div className="em-app-header em-app-header-compact">
             <span className="em-compact-info">⚡ {totalUnfiltered} tasks</span>
@@ -756,6 +835,8 @@ export function MatrixApp({ app, repo, plugin }: Props) {
         </div>
         )}
 
+        <TaskEditingContext.Provider value={{ app, tasks }}>
+        <DependencyNavigationContext.Provider value={handleNavigateToDependency}>
         <div className="em-app-body">
         {effectiveKanban ? (
           <KanbanView
@@ -805,6 +886,8 @@ export function MatrixApp({ app, repo, plugin }: Props) {
           />
         )}
         </div>
+        </DependencyNavigationContext.Provider>
+        </TaskEditingContext.Provider>
       </div>
       {/* DragOverlay jen na desktopu — na mobilu se posouvá originální karta
           (position:fixed overlay je na Obsidian mobile nespolehlivý). */}

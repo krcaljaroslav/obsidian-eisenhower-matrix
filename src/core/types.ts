@@ -25,6 +25,15 @@ export type Task = {
   startDate?: string;
   doneDate?: string;
   priority?: Priority;
+  id?: string;
+  blockedBy: string[];
+  trailingTokens: string[];
+  /** Odvozené vazby doplněné repository nad celou načtenou množinou úkolů. */
+  isBlocked: boolean;
+  blockedByTasks: Task[];
+  blocksTasks: Task[];
+  missingBlockers: string[];
+  hasCircularDependency: boolean;
   sourceFile: string;
   isFromDnes: boolean;
 };

@@ -16,6 +16,30 @@ const TAG_TOKEN = /#[\p{L}\p{N}_-]+/gu;
 const DUE_DATE_RE = /📅\s*(\d{4}-\d{2}-\d{2})/;
 const START_DATE_RE = /🛫\s*(\d{4}-\d{2}-\d{2})/;
 const DONE_DATE_RE = /✅\s*(\d{4}-\d{2}-\d{2})/;
+const ID_RE = /🆔\s*([A-Za-z0-9_-]+)/;
+const BLOCKED_BY_RE = /\u26d4\s*([A-Za-z0-9_-]+(?:\s*,\s*[A-Za-z0-9_-]+)*)/;
+const DEPENDENCY_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+const TASKS_METADATA_TOKEN_RE =
+  /(?:^|\s)((?:\u{23F3}|\u{2795}|\u{1F501}|\u{1F3C1}|\u{274C})\s*.*?)(?=\s+(?:\u{1F4C5}|\u{1F6EB}|\u{2705}|\u{1F194}|\u{26D4}|\u{1F53A}|\u{23EB}|\u{1F53C}|\u{1F53D}|\u{23EC}|\u{23F3}|\u{2795}|\u{1F501}|\u{1F3C1}|\u{274C})(?:\s|$)|$)/gu;
+const BARE_ID_RE = /\u{1F194}(?=\s*(?:(?:\u{1F4C5}|\u{1F6EB}|\u{2705}|\u{1F194}|\u{26D4}|\u{1F53A}|\u{23EB}|\u{1F53C}|\u{1F53D}|\u{23EC}|\u{23F3}|\u{2795}|\u{1F501}|\u{1F3C1}|\u{274C})|$))/u;
+const KNOWN_METADATA_MARKERS = new Set([
+  '📅',
+  '🛫',
+  '✅',
+  '🆔',
+  '⛔',
+  '🔺',
+  '⏫',
+  '🔼',
+  '🔽',
+  '⏬',
+  '⏳',
+  '➕',
+  '🔁',
+  '🏁',
+  '❌',
+]);
 
 const PRIORITY_RE = /(🔺|⏫|🔼|🔽|⏬)/;
 const PRIORITY_STRIP_RE = /\s*(🔺|⏫|🔼|🔽|⏬)/g;
@@ -46,6 +70,9 @@ export type ParsedTask = {
   startDate?: string;
   doneDate?: string;
   priority?: Priority;
+  id?: string;
+  blockedBy: string[];
+  trailingTokens: string[];
 };
 
 /**
@@ -142,6 +169,9 @@ export function parseTaskLine(line: string, lineIndex: number): ParsedTask | nul
   const dueDate = DUE_DATE_RE.exec(body)?.[1];
   const startDate = START_DATE_RE.exec(body)?.[1];
   const doneDate = DONE_DATE_RE.exec(body)?.[1];
+  const id = ID_RE.exec(body)?.[1];
+  const blockedBy = parseBlockedBy(body);
+  const trailingTokens = parseTrailingTokens(body);
 
   const priorityMatch = PRIORITY_RE.exec(body)?.[1];
   const priority = priorityMatch ? EMOJI_TO_PRIORITY[priorityMatch] : undefined;
@@ -154,7 +184,13 @@ export function parseTaskLine(line: string, lineIndex: number): ParsedTask | nul
     .replace(DUE_DATE_RE, '')
     .replace(START_DATE_RE, '')
     .replace(DONE_DATE_RE, '')
+    .replace(ID_RE, '')
+    .replace(BARE_ID_RE, '')
+    .replace(BLOCKED_BY_RE, '')
     .replace(PRIORITY_STRIP_RE, '');
+  for (const token of trailingTokens) {
+    text = text.replace(token, '');
+  }
   text = text.replace(/\s+/g, ' ').trim();
 
   return {
@@ -169,7 +205,36 @@ export function parseTaskLine(line: string, lineIndex: number): ParsedTask | nul
     startDate,
     doneDate,
     priority,
+    id,
+    blockedBy,
+    trailingTokens,
   };
+}
+
+function parseBlockedBy(body: string): string[] {
+  const blockedByValue = BLOCKED_BY_RE.exec(body)?.[1];
+  if (!blockedByValue) return [];
+
+  return [...new Set(
+    blockedByValue
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => DEPENDENCY_ID_RE.test(entry)),
+  )];
+}
+
+function parseTrailingTokens(body: string): string[] {
+  const trailingTokens: string[] = [];
+
+  for (const match of body.matchAll(TASKS_METADATA_TOKEN_RE)) {
+    const token = match[1].trim();
+    const marker = /^\p{Extended_Pictographic}\uFE0F?/u.exec(token)?.[0];
+    if (marker && KNOWN_METADATA_MARKERS.has(marker)) trailingTokens.push(token);
+  }
+
+  if (BARE_ID_RE.test(body)) trailingTokens.push('🆔');
+
+  return trailingTokens;
 }
 
 function determineQuadrant(body: string): Quadrant {

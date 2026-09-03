@@ -85,6 +85,9 @@ export function buildTaskLine(
   dueDate?: string | null,
   priority?: Priority | null,
   status: string = ' ',
+  id?: string,
+  blockedBy: string[] = [],
+  trailingTokens: string[] = [],
 ): string {
   const trimmed = text.trim();
 
@@ -102,9 +105,14 @@ export function buildTaskLine(
   const tagsPart = contextTags.length > 0 ? contextTags.join(' ') + ' ' : '';
   const priorityPart = priority ? `${PRIORITY_EMOJI[priority]} ` : '';
   const duePart = dueDate ? `📅 ${dueDate} ` : '';
+  const trailingPart = trailingTokens.length > 0 ? `${trailingTokens.join(' ')} ` : '';
+  const idPart = id ? `🆔 ${id} ` : '';
+  const blockedByPart = blockedBy.length > 0 ? `⛔ ${blockedBy.join(',')} ` : '';
   // Pokud se task rovnou zakládá jako "done" ([x]), doplň ✅ today (jako toggle).
   const donePart = status.toLowerCase() === 'x' ? ` ✅ ${todayISO}` : '';
-  return `- [${status}] ${prefix}${tagsPart}${priorityPart}${duePart}🛫 ${todayISO} ${remaining}${donePart}`.trimEnd();
+  return `- [${status}] ${prefix}${tagsPart}${priorityPart}${duePart}🛫 ${todayISO} ${remaining} ${trailingPart}${idPart}${blockedByPart}${donePart}`
+    .replace(/  +/g, ' ')
+    .trimEnd();
 }
 
 // ============================================================
@@ -182,6 +190,8 @@ export function setDueDateOnLine(
 export type UpdateOptions = {
   dueDate?: string | null;
   priority?: Priority | null;
+  id?: string | null;
+  blockedBy?: string[];
 };
 
 export type UpdateResult = {
@@ -219,6 +229,8 @@ export function updateLineTextAndTags(
     options.dueDate === undefined ? parsed.dueDate ?? null : options.dueDate;
   const effectivePriority =
     options.priority === undefined ? parsed.priority ?? null : options.priority;
+  const effectiveId = options.id === undefined ? parsed.id ?? null : options.id;
+  const effectiveBlockedBy = options.blockedBy ?? parsed.blockedBy;
 
   if (effectiveDueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(effectiveDueDate)) {
     throw new Error(`Invalid dueDate format: "${effectiveDueDate}"`);
@@ -233,9 +245,14 @@ export function updateLineTextAndTags(
   const duePart = effectiveDueDate ? `📅 ${effectiveDueDate} ` : '';
   const startPart = parsed.startDate ? `🛫 ${parsed.startDate} ` : '';
   const text = newText.trim();
+  const trailingPart =
+    parsed.trailingTokens.length > 0 ? ` ${parsed.trailingTokens.join(' ')}` : '';
+  const idPart = effectiveId ? ` 🆔 ${effectiveId}` : '';
+  const blockedByPart =
+    effectiveBlockedBy.length > 0 ? ` ⛔ ${effectiveBlockedBy.join(',')}` : '';
   const donePart = parsed.doneDate ? ` ✅ ${parsed.doneDate}` : '';
 
-  const body = `${quadrantPart}${tagsPart}${priorityPart}${duePart}${startPart}${text}${donePart}`
+  const body = `${quadrantPart}${tagsPart}${priorityPart}${duePart}${startPart}${text}${trailingPart}${idPart}${blockedByPart}${donePart}`
     .replace(/  +/g, ' ')
     .replace(/\s+$/, '');
   const newLine = `${indent}- [${statusChar}] ${body}`;

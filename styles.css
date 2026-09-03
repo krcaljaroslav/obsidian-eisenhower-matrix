@@ -666,6 +666,26 @@
   color: var(--text-muted);
 }
 
+/* Otevřený task čekající na jiný task zůstává čitelný, ale ustoupí aktivním kartám. */
+.em-task-blocked {
+  opacity: 0.58;
+}
+
+.em-task-highlight {
+  animation: em-task-highlight-pulse 1.5s ease-out;
+}
+
+@keyframes em-task-highlight-pulse {
+  0%, 35% {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+  }
+  100% {
+    border-color: var(--background-modifier-border);
+    box-shadow: none;
+  }
+}
+
 /*
  * Originál tasku během aktivního drágu — zešedne, aby uživatel viděl,
  * který task se přesouvá. Řízeno přes activeTaskId z parentu (deterministické,
@@ -773,6 +793,13 @@
   border-radius: var(--radius-s);
   font-family: var(--font-monospace);
   box-sizing: border-box;
+}
+
+.em-dependency-badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .em-tag {
@@ -1026,6 +1053,66 @@ button.em-priority {
   font-family: var(--font-monospace);
 }
 
+.em-edit-dependencies {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--size-2-1);
+}
+
+.em-dependency-field {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 5px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+  overflow: hidden;
+}
+
+.em-dependency-field input {
+  min-width: 0;
+  flex: 1 1 45px;
+  border: 0;
+  padding: 1px;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--font-ui-smaller);
+}
+
+.em-dependency-input-icon {
+  flex: 0 0 auto;
+  font-size: var(--font-ui-smaller);
+}
+
+.em-dependency-chip,
+.em-dependency-more {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background-color: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.em-dependency-chip-label {
+  min-width: 0;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.em-dependency-more {
+  flex: 0 0 auto;
+}
+
 .em-edit-controls {
   display: flex;
   flex-wrap: wrap;
@@ -1167,9 +1254,25 @@ button.em-priority {
    nečitelné. Vlastní třída + accent barva to vyřeší napříč všemi
    themes (accent je uživatelská barva, themes ji nesahají). */
 .em-tag-suggestion.is-selected,
-.suggestion-item.em-tag-suggestion.is-selected {
+.suggestion-item.em-tag-suggestion.is-selected,
+.em-task-suggestion.is-selected,
+.suggestion-item.em-task-suggestion.is-selected {
   background-color: var(--interactive-accent);
   color: var(--text-on-accent);
+}
+
+.em-task-suggestion-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.em-task-suggestion-source {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* === Inline markdown v textu tasku === */

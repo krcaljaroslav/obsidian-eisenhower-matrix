@@ -1,7 +1,7 @@
 {
   "id": "four-d-eisenhower-matrix",
   "name": "4D Eisenhower Matrix",
-  "version": "1.0.29",
+  "version": "1.0.30",
   "minAppVersion": "1.8.0",
   "description": "Visualize tasks across your vault in a 5-quadrant Eisenhower matrix (DO / DECIDE / DELEGATE / DELETE / OPEN). Reads and writes standard task syntax — tags, due/start/done dates, and priority emoji.",
   "author": "Jaroslav Krčál",

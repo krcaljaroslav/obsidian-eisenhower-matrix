@@ -3,7 +3,7 @@ import type { PaneType } from 'obsidian';
 import { useState, type ReactNode } from 'react';
 import type { Priority, Quadrant as QuadrantKind, Task } from '../core/types.ts';
 import { QUADRANTS, QUADRANT_META } from '../core/types.ts';
-import { TaskCard } from './TaskCard.tsx';
+import { TaskCard, type DependencySelection } from './TaskCard.tsx';
 import { Quadrant } from './Quadrant.tsx';
 import { AddTaskInput } from './AddTaskInput.tsx';
 import { Icon } from './Icon.tsx';
@@ -48,6 +48,7 @@ type Props = {
     text: string,
     contextTags: string[],
     options: { dueDate: string | null; priority: Priority | null },
+    dependencies: DependencySelection,
   ) => Promise<void>;
   onAddTask: (input: {
     text: string;
@@ -90,7 +91,9 @@ export function KanbanView(props: Props) {
         onToggle={() => props.onToggleTask(t)}
         onSetStatus={(s) => props.onSetStatus(t, s)}
         onSetDueDate={(d) => props.onSetDueDate(t, d)}
-        onUpdateTask={(text, tags, opts) => props.onUpdateTask(t, text, tags, opts)}
+        onUpdateTask={(text, tags, opts, dependencies) =>
+          props.onUpdateTask(t, text, tags, opts, dependencies)
+        }
         onOpenSource={(mode) => props.onOpenSource(t, mode)}
         onOpenLink={(link) => props.onOpenLink(t, link)}
         onMoveQuadrant={(target) => props.onMoveQuadrant(t, target)}

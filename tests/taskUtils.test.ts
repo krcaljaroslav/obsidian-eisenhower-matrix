@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { addDaysISO, matchesDueFilter } from '../src/core/taskUtils.ts';
+import {
+  addDaysISO,
+  indexTaskDependencies,
+  makeCompareTask,
+  matchesDueFilter,
+  sortTasksByDependencies,
+} from '../src/core/taskUtils.ts';
 import type { Task } from '../src/core/types.ts';
 
-function task(dueDate?: string): Task {
+function task(dueDate?: string, overrides: Partial<Task> = {}): Task {
   return {
     lineIndex: 0,
     raw: '',
@@ -12,8 +18,16 @@ function task(dueDate?: string): Task {
     quadrant: 'DO',
     contextTags: [],
     dueDate,
+    blockedBy: [],
+    trailingTokens: [],
+    isBlocked: false,
+    blockedByTasks: [],
+    blocksTasks: [],
+    missingBlockers: [],
+    hasCircularDependency: false,
     sourceFile: 'f.md',
     isFromDnes: false,
+    ...overrides,
   };
 }
 
@@ -28,6 +42,86 @@ describe('addDaysISO', () => {
   });
   it('rolls over month boundary', () => {
     expect(addDaysISO('2026-06-28', 7)).toBe('2026-07-05');
+  });
+});
+
+describe('dependency ordering', () => {
+  it('builds forward and reverse links and reports missing blockers', () => {
+    const indexed = indexTaskDependencies([
+      task(undefined, { id: 'done', text: 'Done blocker', status: 'x' }),
+      task(undefined, { id: 'open', text: 'Open blocker' }),
+      task(undefined, {
+        id: 'dependent',
+        text: 'Dependent',
+        blockedBy: ['done', 'open', 'missing'],
+      }),
+    ]);
+    const dependent = indexed[2];
+
+    expect(dependent.blockedByTasks.map(({ id }) => id)).toEqual(['done', 'open']);
+    expect(dependent.missingBlockers).toEqual(['missing']);
+    expect(dependent.isBlocked).toBe(true);
+    expect(indexed[0].blocksTasks).toEqual([dependent]);
+    expect(indexed[1].blocksTasks).toEqual([dependent]);
+  });
+
+  it('keeps comparator order unchanged without dependencies', () => {
+    const input = [
+      task(undefined, { text: 'No priority' }),
+      task('2026-06-10', { text: 'Overdue' }),
+      task('2026-06-20', { text: 'High', priority: 'high' }),
+      task('2026-06-20', { text: 'Low', priority: 'low' }),
+    ];
+    const baseline = [...input].sort(makeCompareTask(TODAY));
+
+    expect(sortTasksByDependencies(input, TODAY)).toEqual(baseline);
+  });
+
+  it('orders a dependency chain ahead of conflicting priorities', () => {
+    const indexed = indexTaskDependencies([
+      task(undefined, { id: 'a', text: 'A', priority: 'lowest' }),
+      task(undefined, { id: 'b', text: 'B', priority: 'medium', blockedBy: ['a'] }),
+      task(undefined, { id: 'c', text: 'C', priority: 'highest', blockedBy: ['b'] }),
+    ]);
+
+    expect(sortTasksByDependencies(indexed, TODAY).map(({ id }) => id)).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
+  });
+
+  it('keeps every task when dependencies contain a cycle', () => {
+    const indexed = indexTaskDependencies([
+      task(undefined, { id: 'a', text: 'A', blockedBy: ['b'] }),
+      task(undefined, { id: 'b', text: 'B', blockedBy: ['a'] }),
+      task(undefined, { id: 'c', text: 'C' }),
+    ]);
+    const output = sortTasksByDependencies(indexed, TODAY);
+
+    expect(output).toHaveLength(indexed.length);
+    expect(output.map(({ id }) => id).sort()).toEqual(['a', 'b', 'c']);
+    expect(indexed.filter(({ hasCircularDependency }) => hasCircularDependency)).toHaveLength(2);
+  });
+
+  it('ignores a blocker in another quadrant for ordering but marks the task blocked', () => {
+    const indexed = indexTaskDependencies([
+      task(undefined, { id: 'blocker', text: 'Z blocker', quadrant: 'DECIDE' }),
+      task(undefined, {
+        id: 'dependent',
+        text: 'A dependent',
+        quadrant: 'DO',
+        blockedBy: ['blocker'],
+      }),
+      task(undefined, { id: 'peer', text: 'B peer', quadrant: 'DO' }),
+    ]);
+    const doTasks = indexed.filter(({ quadrant }) => quadrant === 'DO');
+
+    expect(sortTasksByDependencies(doTasks, TODAY).map(({ id }) => id)).toEqual([
+      'dependent',
+      'peer',
+    ]);
+    expect(doTasks[0].isBlocked).toBe(true);
   });
 });
 

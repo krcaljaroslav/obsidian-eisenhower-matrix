@@ -38,6 +38,7 @@ Vizualizace tasků napříč celým vault-em v **5-polové Eisenhower matici** (
 | **Deterministické řazení** | V kvadrantu: overdue → priorita → due date → abecedně. Žádné nechtěné přeskupení dragem. |
 | **Daily note integrace** | Nové tasky jdou pod **konfigurovatelný nadpis sekce**; pokud dnešní daily note chybí, vytvoří se automaticky podle tvého core „Daily notes" template (`{{date}}`, `{{title}}`, `{{time}}`). |
 | **Vyloučené složky** | Odkloní matici od šablon, archivů nebo čehokoli, co nechceš skenovat. |
+| **Závislosti tasků** | Čte vazby Obsidian Tasks `🆔` / `⛔`, řadí předpoklady první a umožňuje editovat Before this / After this podle názvu tasku. |
 | **Desktop i mobil** | Funguje na desktopu i Androidu (`isDesktopOnly: false`); responzivní layout s ovládáním pro dotyk. |
 | **Theme-aware** | Postavené čistě na Obsidian CSS proměnných — přizpůsobí se světlému/tmavému theme i accent barvě. |
 
@@ -107,6 +108,16 @@ Deterministické, nelze ručně přeskupit:
 
 Manuální páka přeskupování je **priorita** — nastav ji a task se vyhoupne nahoru.
 
+### Závislosti tasků
+
+Matice čte `🆔 id` a `⛔ id1,id2`. Blokované karty jsou ztlumené a odkazují na předpoklady; tasky, které blokují jiné, odkazují zpět. Vazby lze upravit inline přes **Before this** a **After this**. Předpoklady se řadí první v témže kvadrantu; vazba mezi kvadranty stále označí task jako blokovaný, ale pořadí neovlivní.
+
+Chybějící ID a cykly se zobrazí jako varování. Blokovaný task lze po potvrzení dokončit a dokončení předpokladu oznámí počet odblokovaných tasků. Tasky ve vyloučených složkách se neindexují, takže vazby na ně vypadají jako neznámé a neblokují ani neovlivňují řazení.
+
+Parser zachovává jen jmenovitě podporovaná pole Tasks (`⏳`, `➕`, `🔁`, `🏁`, `❌`); případné nové pole Tasks je nutné do tohoto seznamu ručně doplnit. Cokoli jiného zůstává v názvu tasku, kam to patří.
+
+**Známé meze.** Metadata Tasks se čekají na konci řádku, přesně jak je zapisuje samotný plugin Tasks. Text napsaný *za* pole jako `⏳` nebo `🔁` se přečte jako hodnota toho pole a z názvu karty zmizí; `⛔` použité dekorativně si vezme následující slovo jako id závislosti. Dekorativní emoji piš před metadata, ne za ně.
+
 ## Nastavení
 
 `Settings → 4D Eisenhower Matrix`:
@@ -114,6 +125,9 @@ Manuální páka přeskupování je **priorita** — nastav ji a task se vyhoupn
 - **Daily folder** — kam ukládat nové daily notes. Prázdné = respektuj core plugin „Daily notes" config. Override = vlastní cesta (s folder suggesterem).
 - **Daily section heading** — nadpis v daily note, pod který se čtou a přidávají dnešní tasky. Výchozí: `# Today`. Nastav podle toho, co používáš (např. `# Dnes`, `## Úkoly`).
 - **Vyloučené složky** — tasky z těchto složek se ignorují. Výchozí: žádné — vyloučené složky si nastav sám. Na Obsidianu 1.13+ je to nativní seznam (`+` otevře výběr složky, každý řádek má mazací tlačítko), na starších verzích UI s + / × a folder suggesterem.
+- **Warn when completing a blocked task** — před zavřením blokovaného tasku zobrazí potvrzení. Výchozí: zapnuto.
+- **Respect task dependencies when sorting** — uvnitř kvadrantu řadí předpoklady před závislé tasky. Výchozí: zapnuto.
+- **Hide blocked tasks** — skryje právě blokované tasky z matice; pokud je blokovaný i blokátor, mohou zmizet obě karty a matice neukáže, na co řetěz čeká. Výchozí: vypnuto.
 
 Na Obsidianu 1.13 a novějším se nastavení navíc najde přes vyhledávací pole nahoře v okně Settings.
 
@@ -150,6 +164,8 @@ Něco postrádáš? [Issue na GitHubu](https://github.com/krcaljaroslav/4D-eisen
 [Issues](https://github.com/krcaljaroslav/4D-eisenhower-matrix/issues) · Pull requesty vítané.
 
 ## Changelog
+
+**1.0.30** — Přidány závislosti Obsidian Tasks (`🆔` / `⛔`): řazení podle vazeb, badge a navigace blokátorů, inline editace Before this / After this, varování při dokončení, nastavení filtru a bezpečné zachování metadat při editaci.
 
 **1.0.29** — Interní oprava bez viditelné změny: dvě API Obsidianu 1.13, která používá nová karta nastavení (`SettingTab.update()`, `ButtonComponent.setDestructive()`), jsou nově za guardem `requireApiVersion('1.13.0')`. Volala se odjakživa jen na 1.13+, ale statická kontrola to nepozná a hlásila je proti deklarovanému `minAppVersion` 1.8.0. Podpora starších verzí Obsidianu se nemění — `minAppVersion` zůstává 1.8.0.
 

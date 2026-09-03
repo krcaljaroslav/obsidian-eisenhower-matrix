@@ -38,6 +38,7 @@ Visualize tasks across your entire vault in a **5-quadrant Eisenhower matrix** (
 | **Deterministic sorting** | Within a quadrant: overdue → priority → due date → alphabetical. No accidental drag-reordering. |
 | **Daily note integration** | New tasks go under a **configurable section heading**; if today's daily note is missing it's created automatically, honoring your core "Daily notes" template (`{{date}}`, `{{title}}`, `{{time}}`). |
 | **Excluded folders** | Point the matrix away from templates, archives or anything you don't want scanned. |
+| **Task dependencies** | Reads Obsidian Tasks `🆔` / `⛔` links, puts prerequisites first, and edits Before this / After this relationships by task name. |
 | **Desktop & mobile** | Works on desktop and Android (`isDesktopOnly: false`); responsive layout with touch-friendly controls. |
 | **Theme-aware** | Built entirely on Obsidian CSS variables, so it adapts to your light/dark theme and accent colour. |
 
@@ -107,6 +108,16 @@ Deterministic — cannot be reordered manually:
 
 The manual lever for reordering is **priority** — set it and the task jumps up.
 
+### Task dependencies
+
+The matrix reads `🆔 id` and `⛔ id1,id2`. Blocked cards are dimmed and link to their prerequisites; tasks that block others link back to them. Edit relationships inline with **Before this** and **After this**. Prerequisites sort first within the same quadrant; cross-quadrant dependencies still mark a task as blocked but do not affect ordering.
+
+Missing IDs and cycles display warnings. Completing a blocked task is allowed after confirmation, and completing a prerequisite reports how many tasks became unblocked. Tasks in excluded folders are not indexed, so links to them appear as unknown and do not block or affect sorting.
+
+The parser recognises a named list of Tasks fields (`⏳`, `➕`, `🔁`, `🏁`, `❌`) and preserves them when you edit a task. A new Tasks field has to be added to that list by hand; anything else stays in the task title, where it belongs.
+
+**Known limits.** Tasks metadata is expected at the end of the line, exactly as Obsidian Tasks writes it. Text placed *after* a field such as `⏳` or `🔁` is read as that field's value and drops out of the card title, and a `⛔` used decoratively claims the next word as a dependency id. Keep decorative emoji before the metadata, not after it.
+
 ## Settings
 
 `Settings → 4D Eisenhower Matrix`:
@@ -114,6 +125,9 @@ The manual lever for reordering is **priority** — set it and the task jumps up
 - **Daily folder** — where new daily notes are created. Empty = respect the core "Daily notes" plugin config. Override = a custom path (with a folder suggester).
 - **Daily section heading** — the heading in the daily note under which today's tasks are read and added. Default: `# Today`. Set it to whatever you use (e.g. `# Dnes`, `## Tasks`).
 - **Excluded folders** — tasks from these folders are ignored. Default: none — add the folders you want excluded yourself. On Obsidian 1.13+ this is the native list UI (`+` opens a folder picker, each row has a delete button); on older versions it's the + / × UI with a folder suggester.
+- **Warn when completing a blocked task** — asks for confirmation before closing a blocked task. Default: on.
+- **Respect task dependencies when sorting** — places prerequisites first within each quadrant. Default: on.
+- **Hide blocked tasks** — removes currently blocked tasks from the matrix. If a blocker is itself blocked, both cards can be hidden, so the matrix will not show what the chain is waiting for. Default: off.
 
 On Obsidian 1.13 and later the settings also show up in the search box at the top of the Settings window.
 
@@ -150,6 +164,8 @@ Missing something? [Open an issue](https://github.com/krcaljaroslav/4D-eisenhowe
 [Issues](https://github.com/krcaljaroslav/4D-eisenhower-matrix/issues) · Pull requests welcome.
 
 ## Changelog
+
+**1.0.30** — Added Obsidian Tasks dependencies (`🆔` / `⛔`): dependency-aware ordering, blocker badges and navigation, inline Before this / After this editing, completion warnings, filtering settings, and safe metadata preservation during edits.
 
 **1.0.29** — Internal fix, no visible change: the two Obsidian 1.13 APIs used by the new settings tab (`SettingTab.update()`, `ButtonComponent.setDestructive()`) are now behind `requireApiVersion('1.13.0')` guards. They were only ever reached on 1.13+, but a static check can't see that and flagged them against the declared `minAppVersion` of 1.8.0. Support for older Obsidian versions is unchanged — `minAppVersion` stays 1.8.0.
 
