@@ -49,6 +49,9 @@ export type PluginSettings = {
    * Done) a zbylé kvadranty jsou pod ním. `null` = normální 5-mřížka.
    */
   kanbanQuadrant: Quadrant | null;
+  graphView: boolean;
+  graphPositions: Record<string, { col: number; row: number }>;
+  graphZoom: number;
 };
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -74,4 +77,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   respectTaskDependenciesWhenSorting: true,
   hideBlockedTasks: false,
   kanbanQuadrant: null,
+  graphView: false,
+  graphPositions: {},
+  graphZoom: 1,
 };

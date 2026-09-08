@@ -17,6 +17,7 @@ type Props = {
   }) => Promise<void>;
   onCancel: () => void;
   createTagSuggest: (inputEl: HTMLInputElement) => void;
+  initialTags?: string[];
 };
 
 function normalizeTagsInput(raw: string): string[] {
@@ -27,9 +28,9 @@ function normalizeTagsInput(raw: string): string[] {
     .map((t) => (t.startsWith('#') ? t : `#${t}`));
 }
 
-export function AddTaskInput({ quadrant, status, onSubmit, onCancel, createTagSuggest }: Props) {
+export function AddTaskInput({ quadrant, status, onSubmit, onCancel, createTagSuggest, initialTags = [] }: Props) {
   const [text, setText] = useState('');
-  const [tagsRaw, setTagsRaw] = useState('');
+  const [tagsRaw, setTagsRaw] = useState(initialTags.join(' '));
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<Priority | null>(null);
   const [pending, setPending] = useState(false);

@@ -20,6 +20,7 @@ Vizualizace tasků napříč celým vault-em v **5-polové Eisenhower matici** (
 |--------|---------|
 | **5-polová matice** | DO / DECIDE / DELEGATE / DELETE + záchytný **OPEN**. Kvadrant určuje první `#tag` za checkboxem (`#DO`, `#DECIDE`, `#DELEGATE`, `#DELETE`); cokoli jiného spadne do OPEN. |
 | **Kanban zobrazení** | Rozbalí libovolný kvadrant na celou šířku se sloupci **To-do · In progress · Scheduled · Done**. Na desktopu drag karet mezi sloupci mění stav, na jiný kvadrant je přesune, nebo task rovnou přidáš do sloupce. Na mobilu/tabletu board scrolluje vodorovně a stav měníš přes menu karty (*Mark as…*). |
+| **Graf závislostí** | Ukazuje cíle nad jejich blokátory v pravoúhlé mřížce a úkoly bez vazeb v odděleném pásmu. Větve lze sbalit, graf zoomovat a na desktopu karty ručně rozmístit; první ruční posun přidá `🆔`, souřadnice zůstávají v `data.json`. Mobil nabízí čtení, navigaci, menu a zakládání bez dragu. |
 | **Cross-vault agregace** | Sbírá tasky ze **všech `.md` souborů** ve vaultu (Dataview-like), ne jen z dnešní daily note — jeden board nad celým druhým mozkem. |
 | **6 stavů tasku** | Things-style `[ ]` to-do · `[/]` in progress · `[x]` done · `[-]` canceled · `[>]` forwarded · `[<]` scheduling. Každá karta má status box; libovolný stav nastavíš pravým klikem → *Mark as…*. |
 | **Plné CRUD** | Přidání (text + tagy + due date + priorita), inline editace, odškrtnutí, přesun mezi kvadranty — vše se zapíše přímo do Markdownu. |
@@ -42,6 +43,8 @@ Vizualizace tasků napříč celým vault-em v **5-polové Eisenhower matici** (
 | **Závislosti tasků** | Čte vazby Obsidian Tasks `🆔` / `⛔`, řadí předpoklady první a umožňuje editovat Before this / After this podle názvu tasku. |
 | **Desktop i mobil** | Funguje na desktopu i Androidu (`isDesktopOnly: false`); responzivní layout s ovládáním pro dotyk. |
 | **Theme-aware** | Postavené čistě na Obsidian CSS proměnných — přizpůsobí se světlému/tmavému theme i accent barvě. |
+
+V grafovém režimu se **Hide blocked tasks** ignoruje, protože blokátory tvoří jeho strukturu. Hotové blokátory řídí existující přepínač **Done**. Ruční pozice patří konkrétnímu vaultu a nepřenášejí se. Když založení selže až po vytvoření daily note, prázdná poznámka může zůstat.
 
 ## Instalace
 

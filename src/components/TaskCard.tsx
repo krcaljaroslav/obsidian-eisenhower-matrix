@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Menu, Platform, setIcon, type App, type PaneType } from 'obsidian';
 import type { Priority, Quadrant, Task } from '../core/types.ts';
@@ -71,6 +71,12 @@ type Props = {
   onOpenLink: InlineLinkHandler;
   onMoveQuadrant: (target: Quadrant) => void;
   createTagSuggest: (inputEl: HTMLInputElement) => void;
+  style?: CSSProperties;
+  className?: string;
+  children?: ReactNode;
+  extendMenu?: (menu: Menu) => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 };
 
 export function TaskCard({
@@ -87,6 +93,12 @@ export function TaskCard({
   onOpenLink,
   onMoveQuadrant,
   createTagSuggest,
+  style,
+  className = '',
+  children,
+  extendMenu,
+  onMouseEnter,
+  onMouseLeave,
 }: Props) {
   const navigateToDependency = useContext(DependencyNavigationContext);
   const overdue = isOverdue(task, today);
@@ -124,6 +136,7 @@ export function TaskCard({
     menu.addItem((item) =>
       item.setTitle('Edit').setIcon('pencil').onClick(enterEdit),
     );
+    extendMenu?.(menu);
     menu.addSeparator();
     menu.addItem((item) =>
       item
@@ -334,8 +347,11 @@ export function TaskCard({
       {...(editing ? {} : listeners)}
       onDoubleClick={handleDoubleClick}
       onContextMenu={showContextMenu}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       data-task-key={draggableId}
       aria-current={isCurrentSearchMatch ? 'true' : undefined}
+      style={style}
       className={`em-task ${overdue ? 'em-task-overdue' : ''} ${
         inGrace ? 'em-task-grace' : ''
       } ${editing ? 'em-task-editing' : ''} ${task.checked && !editing ? 'em-task-checked' : ''} ${
@@ -344,7 +360,7 @@ export function TaskCard({
         isActiveDrag && !Platform.isMobile ? 'em-task-active-drag' : ''
       } ${isSearchMatch ? 'em-task-match' : ''} ${
         isCurrentSearchMatch ? 'em-task-match-current' : ''
-      }`}
+      } em-task-q-${task.quadrant.toLowerCase()} ${className}`}
       title={
         editing
           ? undefined
@@ -406,6 +422,7 @@ export function TaskCard({
       {inGrace && !editing && (
         <div className="em-grace-bar" style={{ width: `${gracePct}%` }} aria-hidden />
       )}
+      {children}
     </li>
   );
 }

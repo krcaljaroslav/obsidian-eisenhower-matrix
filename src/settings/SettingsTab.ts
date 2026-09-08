@@ -36,6 +36,8 @@ const HIDE_BLOCKED_DESC = 'Hide tasks that have at least one unfinished dependen
 const RESET_NAME = 'Reset to defaults';
 const RESET_DESC =
   'Clears overrides — daily folder falls back to the core config, excluded folders are emptied.';
+const RESET_GRAPH_NAME = 'Reset graph positions';
+const RESET_GRAPH_DESC = 'Forget every manually placed card in the dependency graph.';
 
 export class MatrixSettingsTab extends PluginSettingTab {
   constructor(
@@ -108,6 +110,16 @@ export class MatrixSettingsTab extends PluginSettingTab {
             }).open();
           },
         },
+      },
+      {
+        name: RESET_GRAPH_NAME,
+        desc: RESET_GRAPH_DESC,
+        render: (setting: Setting) => setting.addButton((btn) => {
+          btn.setButtonText('Reset').onClick(() => {
+            if (confirm('Reset every manually placed graph card?')) void this.resetGraphPositions().then(() => this.refreshDefinitions());
+          });
+          if (requireApiVersion('1.13.0')) btn.setDestructive();
+        }),
       },
       {
         name: RESET_NAME,
@@ -206,6 +218,7 @@ export class MatrixSettingsTab extends PluginSettingTab {
         warnWhenCompletingBlockedTask: this.plugin.settings.warnWhenCompletingBlockedTask,
         respectTaskDependenciesWhenSorting: this.plugin.settings.respectTaskDependenciesWhenSorting,
         hideBlockedTasks: this.plugin.settings.hideBlockedTasks,
+        graphPositions: this.plugin.settings.graphPositions,
       };
       try {
         change();
@@ -304,6 +317,10 @@ export class MatrixSettingsTab extends PluginSettingTab {
     });
   }
 
+  private async resetGraphPositions(): Promise<void> {
+    await this.mutate(() => { this.plugin.settings.graphPositions = {}; });
+  }
+
   // ==========================================================================
   // Imperativní fallback pro Obsidian < 1.13, kde `getSettingDefinitions()`
   // neexistuje. Na 1.13+ se tahle větev nevolá. Smazat, až `minAppVersion`
@@ -350,6 +367,10 @@ export class MatrixSettingsTab extends PluginSettingTab {
 
     // === Excluded folders ===
     this.renderExcludedFoldersSection(containerEl);
+
+    new Setting(containerEl).setName(RESET_GRAPH_NAME).setDesc(RESET_GRAPH_DESC).addButton((btn) => btn.setButtonText('Reset').setWarning().onClick(async () => {
+      if (confirm('Reset every manually placed graph card?')) { await this.resetGraphPositions(); this.display(); }
+    }));
 
     // === Reset ===
     new Setting(containerEl)

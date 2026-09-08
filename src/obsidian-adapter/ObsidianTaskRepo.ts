@@ -1,6 +1,9 @@
 import { MarkdownView, type App, type TFile } from 'obsidian';
 import { parseAllTasks, parseDaily } from '../core/parser.ts';
 import {
+  addIdToLine,
+  addBlockerIdToLine,
+  removeBlockerIdFromLine,
   appendTaskUnderHeading,
   moveLineQuadrant,
   setDueDateOnLine,
@@ -25,6 +28,7 @@ export type TaskDependencySelection = {
   afterTasks: Task[];
   missingBlockerIds: string[];
 };
+export type NewTaskInput = { text: string; quadrant: Quadrant; dueDate: string | null; priority: Priority | null; status?: string };
 
 type PlannedTaskUpdate = {
   task: Task;
@@ -37,6 +41,16 @@ type WrittenFile = {
   file: TFile;
   before: string;
   after: string;
+};
+
+type LineTransform = {
+  task: Task;
+  transform: (line: string) => string;
+};
+
+type FileAppend = {
+  file: TFile;
+  transform: (content: string) => string;
 };
 
 /**
@@ -257,6 +271,48 @@ export class ObsidianTaskRepo {
     await this.applyTaskUpdates(updates, task.sourceFile);
   }
 
+  async ensureTaskId(task: Task, targetToBlock?: Task): Promise<{ id: string; newLine: string; targetLine?: string }> {
+    if (task.id && !targetToBlock) return { id: task.id, newLine: task.raw };
+
+    const id = task.id ?? this.generateTaskId(new Set(this.knownTaskIds));
+    let newLine = task.raw;
+    let targetLine = targetToBlock?.raw;
+    const transforms: LineTransform[] = [
+      {
+        task,
+        transform: (line) => {
+          newLine = task.id ? line : addIdToLine(line, id).newLine;
+          return newLine;
+        },
+      },
+    ];
+    if (targetToBlock) transforms.push({
+      task: targetToBlock,
+      transform: (line) => {
+        targetLine = addBlockerIdToLine(line, id).newLine;
+        return targetLine;
+      },
+    });
+    await this.applyLineTransforms(transforms, task.sourceFile);
+    this.knownTaskIds.add(id);
+    return { id, newLine, ...(targetLine === undefined ? {} : { targetLine }) };
+  }
+
+  async linkTasks(source: Task, target: Task): Promise<{ id: string; sourceLine: string; targetLine: string }> {
+    const result = await this.ensureTaskId(source, target);
+    if (!result.targetLine) throw new Error('Dependency target was not updated');
+    return { id: result.id, sourceLine: result.newLine, targetLine: result.targetLine };
+  }
+
+  async unlinkTasks(source: Task, target: Task): Promise<string> {
+    if (!source.id) throw new Error('The blocking task has no ID');
+    let targetLine = target.raw;
+    await this.applyLineTransforms([
+      { task: target, transform: (line) => (targetLine = removeBlockerIdFromLine(line, source.id!).newLine) },
+    ], target.sourceFile);
+    return targetLine;
+  }
+
   private planDependencyUpdates(
     task: Task,
     text: string,
@@ -338,42 +394,53 @@ export class ObsidianTaskRepo {
     updates: PlannedTaskUpdate[],
     ownSourceFile: string,
   ): Promise<void> {
-    const byFile = new Map<string, PlannedTaskUpdate[]>();
-    for (const update of updates) {
-      const fileUpdates = byFile.get(update.task.sourceFile) ?? [];
-      fileUpdates.push(update);
-      byFile.set(update.task.sourceFile, fileUpdates);
+    await this.applyLineTransforms(updates.map((update) => ({
+      task: update.task,
+      transform: (line) => updateLineTextAndTags(
+        line,
+        update.text,
+        update.contextTags,
+        update.options,
+      ).newLine,
+    })), ownSourceFile);
+  }
+
+  private async applyLineTransforms(
+    items: LineTransform[],
+    ownSourceFile: string,
+    append?: FileAppend,
+  ): Promise<void> {
+    const byFile = new Map<string, LineTransform[]>();
+    for (const item of items) {
+      const fileItems = byFile.get(item.task.sourceFile) ?? [];
+      fileItems.push(item);
+      byFile.set(item.task.sourceFile, fileItems);
     }
 
-    const orderedPaths = [
-      ownSourceFile,
-      ...[...byFile.keys()].filter((path) => path !== ownSourceFile),
-    ];
+    const allPaths = new Set([...byFile.keys(), ...(append ? [append.file.path] : [])]);
+    const orderedPaths = append
+      ? [...[...allPaths].filter((path) => path !== ownSourceFile), ownSourceFile]
+      : [ownSourceFile, ...[...allPaths].filter((path) => path !== ownSourceFile)];
     const written: WrittenFile[] = [];
     try {
       for (const path of orderedPaths) {
-        const fileUpdates = byFile.get(path);
-        if (!fileUpdates) continue;
-        const file = this.requireFile(path);
+        const fileItems = byFile.get(path) ?? [];
+        const file = append?.file.path === path ? append.file : this.requireFile(path);
         let before = '';
         let after = '';
         await this.app.vault.process(file, (content) => {
           before = content;
-          after = fileUpdates
+          const transformed = fileItems
             .slice()
             .sort((left, right) => right.task.lineIndex - left.task.lineIndex)
-            .reduce((current, update) =>
-              transformLineInContent(current, update.task.lineIndex, (line) => {
-                if (line !== update.task.raw) {
-                  throw new Error(`Task changed before save: ${update.task.sourceFile}:${update.task.lineIndex + 1}`);
+            .reduce((current, item) =>
+              transformLineInContent(current, item.task.lineIndex, (line) => {
+                if (line !== item.task.raw) {
+                  throw new Error(`Task changed before save: ${item.task.sourceFile}:${item.task.lineIndex + 1}`);
                 }
-                return updateLineTextAndTags(
-                  line,
-                  update.text,
-                  update.contextTags,
-                  update.options,
-                ).newLine;
+                return item.transform(line);
               }), content);
+          after = append?.file.path === path ? append.transform(transformed) : transformed;
           return after;
         });
         written.push({ file, before, after });
@@ -475,6 +542,52 @@ export class ObsidianTaskRepo {
     // překreslíme všechny otevřené preview viewy téhož souboru.
     this.refreshOpenPreviews(file);
 
+    return { sourceFile: file.path, lineIndex, newLine };
+  }
+
+  async addTaskAtCell(date: string, input: NewTaskInput): Promise<{ sourceFile: string; lineIndex: number; newLine: string; newId: string }> {
+    const newId = this.generateTaskId(new Set(this.knownTaskIds));
+    const result = await this.appendTaskWithMetadata(date, input, newId, []);
+    this.knownTaskIds.add(newId);
+    return { ...result, newId };
+  }
+
+  async addLinkedTask(date: string, input: NewTaskInput, link: { kind: 'blocker' | 'dependent'; target: Task }): Promise<{ sourceFile: string; lineIndex: number; newLine: string; newId: string | undefined }> {
+    const used = new Set(this.knownTaskIds);
+    const newId = link.kind === 'blocker' ? this.generateTaskId(used) : undefined;
+    const targetId = link.target.id ?? (link.kind === 'dependent' ? this.generateTaskId(used) : undefined);
+    const dailyFile = await ensureDailyExists(this.app, date, this.sectionHeading, this.dailyFolderOverride);
+    let lineIndex = -1;
+    let newLine = '';
+    const targetTransforms: LineTransform[] = link.kind === 'blocker' || (targetId && !link.target.id)
+      ? [{
+        task: link.target,
+        transform: (line) => link.kind === 'blocker'
+          ? addBlockerIdToLine(line, newId!).newLine
+          : addIdToLine(line, targetId!).newLine,
+      }]
+      : [];
+    await this.applyLineTransforms(targetTransforms, dailyFile.path, {
+      file: dailyFile,
+      transform: (content) => {
+        const appended = appendTaskUnderHeading(content, this.sectionHeading, input.text, input.quadrant, date, input.dueDate, input.priority, input.status ?? ' ', newId, link.kind === 'dependent' && targetId ? [targetId] : []);
+        lineIndex = appended.lineIndex;
+        newLine = appended.newLine;
+        return appended.newContent;
+      },
+    });
+    for (const id of [newId, targetId]) if (id) this.knownTaskIds.add(id);
+    return { sourceFile: dailyFile.path, lineIndex, newLine, newId };
+  }
+
+  private async appendTaskWithMetadata(date: string, input: NewTaskInput, id?: string, blockedBy: string[] = []): Promise<{ sourceFile: string; lineIndex: number; newLine: string }> {
+    const file = await ensureDailyExists(this.app, date, this.sectionHeading, this.dailyFolderOverride);
+    let lineIndex = -1; let newLine = '';
+    await this.app.vault.process(file, (content) => {
+      const result = appendTaskUnderHeading(content, this.sectionHeading, input.text, input.quadrant, date, input.dueDate, input.priority, input.status ?? ' ', id, blockedBy);
+      lineIndex = result.lineIndex; newLine = result.newLine; return result.newContent;
+    });
+    this.refreshOpenPreviews(file);
     return { sourceFile: file.path, lineIndex, newLine };
   }
 

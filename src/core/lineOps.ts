@@ -199,6 +199,75 @@ export type UpdateResult = {
   newLine: string;
 };
 
+const DEPENDENCY_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+function insertBeforeDoneDate(line: string, token: string): string {
+  const trimmedLine = line.trimEnd();
+  const doneDate = /\s+✅\s*\d{4}-\d{2}-\d{2}\s*$/.exec(trimmedLine);
+  if (!doneDate) return `${trimmedLine} ${token}`;
+  return `${trimmedLine.slice(0, doneDate.index)} ${token}${doneDate[0]}`;
+}
+
+export function addIdToLine(line: string, id: string): UpdateResult {
+  if (!DEPENDENCY_ID_RE.test(id)) throw new Error(`Invalid task ID: "${id}"`);
+  const parsed = parseTaskLine(line, 0);
+  if (!parsed) throw new Error(`Not a task line: "${line}"`);
+  if (parsed.id) throw new Error('Task already has an ID');
+  if (/🆔/.test(line)) {
+    return { previousLine: line, newLine: line.replace(/🆔(?!\s*[A-Za-z0-9_-])/, `🆔 ${id}`) };
+  }
+  return { previousLine: line, newLine: insertBeforeDoneDate(line, `🆔 ${id}`) };
+}
+
+export function addBlockerIdToLine(line: string, id: string): UpdateResult {
+  if (!DEPENDENCY_ID_RE.test(id)) throw new Error(`Invalid blocker ID: "${id}"`);
+  const parsed = parseTaskLine(line, 0);
+  if (!parsed) throw new Error(`Not a task line: "${line}"`);
+  if (parsed.blockedBy.includes(id)) {
+    return { previousLine: line, newLine: line };
+  }
+
+  if (/⛔/.test(line) && !/⛔\s*[A-Za-z0-9_-]/.test(line)) {
+    return { previousLine: line, newLine: line.replace(/⛔/, `⛔ ${id}`) };
+  }
+
+  const blockerList = /⛔\s*([A-Za-z0-9_-]+(?:\s*,\s*[A-Za-z0-9_-]+)*)/.exec(line);
+  if (blockerList) {
+    const insertAt = blockerList.index + blockerList[0].length;
+    return {
+      previousLine: line,
+      newLine: `${line.slice(0, insertAt)},${id}${line.slice(insertAt)}`,
+    };
+  }
+  return { previousLine: line, newLine: insertBeforeDoneDate(line, `⛔ ${id}`) };
+}
+
+export function removeBlockerIdFromLine(line: string, id: string): UpdateResult {
+  if (!DEPENDENCY_ID_RE.test(id)) throw new Error(`Invalid blocker ID: "${id}"`);
+  const parsed = parseTaskLine(line, 0);
+  if (!parsed) throw new Error(`Not a task line: "${line}"`);
+  if (!parsed.blockedBy.includes(id)) return { previousLine: line, newLine: line };
+  const blockerList = /⛔\s*([A-Za-z0-9_-]+(?:\s*,\s*[A-Za-z0-9_-]+)*)/.exec(line);
+  if (!blockerList) return { previousLine: line, newLine: line };
+  const entries = [...blockerList[1].matchAll(/[A-Za-z0-9_-]+/g)];
+  const removed = entries.find((entry) => entry[0] === id);
+  if (!removed || removed.index === undefined) return { previousLine: line, newLine: line };
+  const valueStart = blockerList.index + blockerList[0].indexOf(blockerList[1]);
+  const absoluteStart = valueStart + removed.index;
+  const nextComma = /\s*,\s*/.exec(line.slice(absoluteStart + id.length, blockerList.index + blockerList[0].length));
+  const previousText = line.slice(valueStart, absoluteStart);
+  const previousComma = /\s*,\s*$/.exec(previousText);
+  let start = absoluteStart;
+  let end = absoluteStart + id.length;
+  if (nextComma) end += nextComma.index + nextComma[0].length;
+  else if (previousComma) start -= previousComma[0].length;
+  else {
+    start = blockerList.index;
+    while (start > 0 && line[start - 1] === ' ') start--;
+  }
+  return { previousLine: line, newLine: line.slice(0, start) + line.slice(end) };
+}
+
 export function updateLineTextAndTags(
   line: string,
   newText: string,
@@ -214,12 +283,15 @@ export function updateLineTextAndTags(
   // Normalize tags: trim, drop empty, prepend #, dedupe case-insensitive
   const seen = new Set<string>();
   const normalizedTags: string[] = [];
+  const tagsRemainingInText = new Set(
+    (newText.match(/#[\p{L}\p{N}_-]+/gu) ?? []).map((tag) => tag.toLowerCase()),
+  );
   for (const raw of newContextTags) {
     const trimmed = raw.trim();
     if (!trimmed) continue;
     const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
     const key = withHash.toLowerCase();
-    if (seen.has(key)) continue;
+    if (seen.has(key) || tagsRemainingInText.has(key)) continue;
     seen.add(key);
     normalizedTags.push(withHash);
   }
@@ -284,6 +356,8 @@ export function appendTaskUnderHeading(
   dueDate?: string | null,
   priority?: Priority | null,
   status: string = ' ',
+  id?: string,
+  blockedBy: string[] = [],
 ): AppendResult {
   const eol = content.includes('\r\n') ? '\r\n' : '\n';
   const lines = content.split(/\r?\n/);
@@ -310,7 +384,16 @@ export function appendTaskUnderHeading(
     }
   }
 
-  const newLine = buildTaskLine(quadrant, text, todayISO, dueDate, priority, status);
+  const newLine = buildTaskLine(
+    quadrant,
+    text,
+    todayISO,
+    dueDate,
+    priority,
+    status,
+    id,
+    blockedBy,
+  );
   lines.splice(insertAt, 0, newLine);
 
   return {
@@ -341,13 +424,15 @@ export function transformLineInContent(
   lineIndex: number,
   fn: (line: string) => string,
 ): string {
-  const eol = content.includes('\r\n') ? '\r\n' : '\n';
-  const lines = content.split(/\r?\n/);
+  const parts = content.split(/(\r?\n)/);
+  const lineOffsets: number[] = [];
+  for (let index = 0; index < parts.length; index += 2) lineOffsets.push(index);
 
-  if (lineIndex < 0 || lineIndex >= lines.length) {
-    throw new Error(`lineIndex ${lineIndex} out of range (0..${lines.length - 1})`);
+  if (lineIndex < 0 || lineIndex >= lineOffsets.length) {
+    throw new Error(`lineIndex ${lineIndex} out of range (0..${lineOffsets.length - 1})`);
   }
 
-  lines[lineIndex] = fn(lines[lineIndex]);
-  return lines.join(eol);
+  const partIndex = lineOffsets[lineIndex];
+  parts[partIndex] = fn(parts[partIndex]);
+  return parts.join('');
 }

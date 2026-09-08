@@ -20,6 +20,7 @@ Visualize tasks across your entire vault in a **5-quadrant Eisenhower matrix** (
 |---------|--------------|
 | **5-quadrant matrix** | DO / DECIDE / DELEGATE / DELETE plus a catch-all **OPEN**. The quadrant is the first `#tag` after the checkbox (`#DO`, `#DECIDE`, `#DELEGATE`, `#DELETE`); anything else lands in OPEN. |
 | **Kanban view** | Expand any quadrant to full width with **To-do · In progress · Scheduled · Done** status columns. On desktop drag cards between columns to change status, onto another quadrant to move them, or add a task straight into a column. On mobile/tablet the board scrolls horizontally and you change status via the card menu (*Mark as…*). |
+| **Dependency graph** | Shows goals above their blockers on an orthogonal grid, with unlinked tasks in a separate band. Collapse branches, zoom, and place cards manually on desktop; the first manual move adds an `🆔` while grid coordinates stay in `data.json`. Mobile provides reading, navigation, menus, and task creation without drag. |
 | **Cross-vault aggregation** | Collects tasks from **every `.md` file** in the vault (Dataview-like), not just today's daily note — one board for your whole second brain. |
 | **6 task statuses** | Things-style `[ ]` to-do · `[/]` in progress · `[x]` done · `[-]` canceled · `[>]` forwarded · `[<]` scheduling. Each card shows a status box; set any state via right-click → *Mark as…*. |
 | **Full CRUD** | Add (text + tags + due date + priority), edit inline, toggle done, move between quadrants — every change is written straight back to your Markdown. |
@@ -42,6 +43,8 @@ Visualize tasks across your entire vault in a **5-quadrant Eisenhower matrix** (
 | **Task dependencies** | Reads Obsidian Tasks `🆔` / `⛔` links, puts prerequisites first, and edits Before this / After this relationships by task name. |
 | **Desktop & mobile** | Works on desktop and Android (`isDesktopOnly: false`); responsive layout with touch-friendly controls. |
 | **Theme-aware** | Built entirely on Obsidian CSS variables, so it adapts to your light/dark theme and accent colour. |
+
+In graph mode, **Hide blocked tasks** is ignored because blockers are the graph's structure. Completed blockers follow the existing **Done** toggle. Manual positions are vault-local and do not transfer between vaults. If creation fails after making a daily note, the empty note can remain.
 
 ## Installation
 

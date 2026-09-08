@@ -33,9 +33,12 @@ import {
 } from '../core/taskUtils.ts';
 import { Matrix } from '../components/Matrix.tsx';
 import { KanbanView } from '../components/KanbanView.tsx';
+import { GraphView } from '../components/GraphView.tsx';
+import { parseTaskLine } from '../core/parser.ts';
 import { FilterBar } from '../components/FilterBar.tsx';
 import { DateNav } from '../components/DateNav.tsx';
 import { SearchBox } from '../components/SearchBox.tsx';
+import { Icon } from '../components/Icon.tsx';
 import {
   DependencyNavigationContext,
   SearchHighlightContext,
@@ -156,6 +159,16 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   const [kanbanQuadrant, setKanbanQuadrant] = useState<Quadrant | null>(
     plugin.settings.kanbanQuadrant,
   );
+  const [graphView, setGraphView] = useState(plugin.settings.graphView);
+  const [graphPositions, setGraphPositions] = useState(plugin.settings.graphPositions);
+  const [graphZoom, setGraphZoom] = useState(plugin.settings.graphZoom);
+  const [graphRevealKey, setGraphRevealKey] = useState<string | null>(null);
+  const [graphHighlightKey, setGraphHighlightKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!graphHighlightKey) return;
+    const timer = window.setTimeout(() => setGraphHighlightKey(null), 1500);
+    return () => window.clearTimeout(timer);
+  }, [graphHighlightKey]);
   // Hledání (nepersistuje se — po otevření view je vždy zavřené a prázdné)
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -223,6 +236,10 @@ export function MatrixApp({ app, repo, plugin }: Props) {
     plugin.settings.kanbanQuadrant = kanbanQuadrant;
     void plugin.saveSettings();
   }, [kanbanQuadrant, plugin]);
+
+  useEffect(() => { plugin.settings.graphView = graphView; void plugin.saveSettings(); }, [graphView, plugin]);
+  useEffect(() => { plugin.settings.graphPositions = graphPositions; void plugin.saveSettings(); }, [graphPositions, plugin]);
+  useEffect(() => { plugin.settings.graphZoom = graphZoom; void plugin.saveSettings(); }, [graphZoom, plugin]);
 
   // === Data fetching ===
   const refetchTimerRef = useRef<number | null>(null);
@@ -413,7 +430,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
       status?: string;
     }) => {
       try {
-        await repo.addTask(
+        const result = await repo.addTask(
           date,
           input.text,
           input.quadrant,
@@ -421,6 +438,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
           input.priority,
           input.status ?? ' ',
         );
+        setGraphHighlightKey(taskKey(result.sourceFile, result.lineIndex));
       } catch (e) {
         showError(`Adding task failed: ${String((e as Error).message ?? e)}`);
         throw e;
@@ -452,6 +470,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
         appRootRef.current?.querySelectorAll<HTMLElement>('[data-task-key]') ?? [],
       ).find((card) => card.dataset.taskKey === targetKey);
       if (!targetCard) {
+        if (graphView) { setGraphRevealKey(targetKey); return; }
         handleOpenSource(target);
         return;
       }
@@ -468,8 +487,18 @@ export function MatrixApp({ app, repo, plugin }: Props) {
         dependencyHighlightTimerRef.current = null;
       }, 1500);
     },
-    [handleOpenSource],
+    [handleOpenSource, graphView],
   );
+
+  const handleGraphRevealed = useCallback((key: string, present: boolean) => {
+    if (!present) {
+      const target = tasks.find((candidate) => taskKey(candidate.sourceFile, candidate.lineIndex) === key);
+      if (target) handleOpenSource(target);
+      setGraphRevealKey(null);
+      return;
+    }
+    setSearchJump((value) => value + 1);
+  }, [tasks, handleOpenSource]);
 
   useEffect(
     () => () => {
@@ -519,7 +548,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
 
   const passesFilters = useCallback(
     (t: Task): boolean => {
-      if (plugin.settings.hideBlockedTasks && t.isBlocked) return false;
+      if (!graphView && plugin.settings.hideBlockedTasks && t.isBlocked) return false;
       if (!matchesFilter(t, selectedTags)) return false;
       if (!matchesDueFilter(t, dueFilter, today, date)) return false;
       if (showCompleted) return true;
@@ -528,7 +557,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
       if (!isClosedStatus(t.status)) return true;
       return graceMap.has(taskKey(t.sourceFile, t.lineIndex));
     },
-    [plugin, selectedTags, dueFilter, today, date, showCompleted, graceMap],
+    [plugin, selectedTags, dueFilter, today, date, showCompleted, graceMap, graphView],
   );
 
   /** Co projde filtry — bez ohledu na hledání. Tohle je číslo ve filter baru. */
@@ -622,35 +651,37 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   // Efekt běží znovu po každém renderu, který kartu může zpřístupnit — dokud
   // karta v DOM není, scroll se odloží (`lastScrolledRef` hlídá duplicity).
   useEffect(() => {
-    if (!currentMatchKey) {
+    const revealTargetKey = graphRevealKey ?? currentMatchKey;
+    if (!revealTargetKey) {
       lastScrolledRef.current = null;
       return;
     }
     const target = tasks.find(
-      (t) => taskKey(t.sourceFile, t.lineIndex) === currentMatchKey,
+      (t) => taskKey(t.sourceFile, t.lineIndex) === revealTargetKey,
     );
     if (!target) return;
 
-    if (collapsed[target.quadrant]) {
+    if (!graphView && collapsed[target.quadrant]) {
       setCollapsed((prev) => ({ ...prev, [target.quadrant]: false }));
       return;
     }
-    if (kanbanQuadrant !== null && kanbanQuadrant !== target.quadrant) {
+    if (!graphView && kanbanQuadrant !== null && kanbanQuadrant !== target.quadrant) {
       setKanbanQuadrant(target.quadrant);
       return;
     }
 
-    const jumpId = `${currentMatchKey}#${searchJump}`;
+    const jumpId = `${revealTargetKey}#${searchJump}`;
     if (lastScrolledRef.current === jumpId) return;
 
     const card = Array.from(
       appRootRef.current?.querySelectorAll<HTMLElement>('[data-task-key]') ?? [],
-    ).find((el) => el.dataset.taskKey === currentMatchKey);
+    ).find((el) => el.dataset.taskKey === revealTargetKey);
     if (!card) return;
 
     lastScrolledRef.current = jumpId;
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [currentMatchKey, searchJump, tasks, collapsed, kanbanQuadrant, sortedVisibleTasks]);
+    if (graphRevealKey) setGraphRevealKey(null);
+  }, [currentMatchKey, graphRevealKey, searchJump, tasks, collapsed, kanbanQuadrant, sortedVisibleTasks, graphView]);
 
   // Jiný den = jiný pohled; držet v něm starý nález nedává smysl. Změna
   // filtrů pin ruší schválně: uživatel po zavření hledání sáhl na filtr,
@@ -818,6 +849,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
 
       const draggedId = String(e.active.id);
       const overId = String(e.over.id);
+      if (overId === 'graph-canvas') return;
       if (draggedId === overId) return;
 
       const dragged = tasks.find((t) => taskKey(t.sourceFile, t.lineIndex) === draggedId);
@@ -864,13 +896,14 @@ export function MatrixApp({ app, repo, plugin }: Props) {
         onNext={() => goToMatch(1)}
         onPrev={() => goToMatch(-1)}
       />
-      <button
+      {!graphView && <button
         type="button"
         onClick={anyCollapsed ? expandAll : collapseAll}
         className="em-btn-link"
       >
         {anyCollapsed ? 'Expand all' : 'Collapse all'}
-      </button>
+      </button>}
+      <button type="button" onClick={() => setGraphView((current) => !current)} className={graphView ? 'em-kanban-btn-active' : ''} title="Dependency graph"><Icon name="workflow" className="em-kanban-icon" /> Graph</button>
       <label className="em-toggle">
         <input
           type="checkbox"
@@ -1008,7 +1041,42 @@ export function MatrixApp({ app, repo, plugin }: Props) {
         <DependencyNavigationContext.Provider value={handleNavigateToDependency}>
         <SearchHighlightContext.Provider value={searchHighlight}>
         <div className="em-app-body">
-        {effectiveKanban ? (
+        {graphView ? (
+          <GraphView
+            tasks={tasks}
+            seedKeys={new Set(visibleTasks.map((task) => taskKey(task.sourceFile, task.lineIndex)))}
+            selectedTags={selectedTags}
+            showCompleted={showCompleted}
+            graceKeys={new Set(graceMap.keys())}
+            positions={graphPositions}
+            zoom={graphZoom}
+            compact={compactMode}
+            today={today}
+            activeTaskId={activeTask ? taskKey(activeTask.sourceFile, activeTask.lineIndex) : null}
+            revealKey={graphRevealKey ?? currentMatchKey}
+            highlightKey={graphHighlightKey}
+            onRevealed={handleGraphRevealed}
+            onZoom={setGraphZoom}
+            onBack={() => setGraphView(false)}
+            onResetAll={() => setGraphPositions({})}
+            onSetPosition={async (task, cell) => {
+              if (!cell) { if (task.id) setGraphPositions((current) => { const next = { ...current }; delete next[task.id!]; return next; }); return; }
+              try {
+                const ensured = await repo.ensureTaskId(task);
+                setGraphPositions((current) => ({ ...current, [ensured.id]: cell }));
+                if (!task.id) setTasks((current) => current.map((candidate) => taskKey(candidate.sourceFile, candidate.lineIndex) === taskKey(task.sourceFile, task.lineIndex) ? { ...candidate, id: ensured.id, raw: ensured.newLine } : candidate));
+              } catch (error) { showError(`Could not save position: ${String((error as Error).message ?? error)}`); }
+            }}
+            onToggleTask={(task) => void handleToggle(task)} onSetStatus={handleSetStatus} onSetDueDate={handleSetDueDate} onUpdateTask={handleUpdate}
+            onOpenSource={handleOpenSource} onOpenLink={handleOpenLink} onMoveQuadrant={(task, quadrant) => void handleMove(task, quadrant)}
+            onAddTask={handleAdd}
+            onAddAtCell={async (cell, input) => { const result = await repo.addTaskAtCell(date, input); setGraphPositions((current) => ({ ...current, [result.newId]: cell })); setGraphHighlightKey(taskKey(result.sourceFile, result.lineIndex)); const parsed = parseTaskLine(result.newLine, result.lineIndex); if (parsed) setTasks((current) => [...current, { ...parsed, sourceFile: result.sourceFile, isFromDnes: true, isBlocked: false, blockedByTasks: [], blocksTasks: [], missingBlockers: [], hasCircularDependency: false }]); }}
+            onAddLinked={async (target, kind, input) => { const result = await repo.addLinkedTask(date, input, { target, kind }); setGraphHighlightKey(taskKey(result.sourceFile, result.lineIndex)); }}
+            onLinkTasks={async (source, target) => { await repo.linkTasks(source, target); setTasks((await repo.getMatrixTasks(date)).tasks); }}
+            onRemoveDependency={async (source, target) => { await repo.unlinkTasks(source, target); setTasks((await repo.getMatrixTasks(date)).tasks); }}
+            createTagSuggest={createTagSuggest}
+          />
+        ) : effectiveKanban ? (
           <KanbanView
             kanbanQuadrant={effectiveKanban}
             tasks={sortedVisibleTasks}
