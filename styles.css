@@ -778,9 +778,16 @@
   background-color: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
 }
 
-.em-task-match-current {
-  border-color: var(--interactive-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+/* Dvě třídy schválně: `.em-task-overdue` (a `.em-task-blocked`) stojí v tomhle
+   souboru níž, takže by při stejné specificitě přebily rámeček výběru a na
+   prošlém tasku by nebylo poznat, kde hledání právě stojí. Outline se navíc
+   kreslí NAD borderem, takže je vidět i přes červený rámeček overdue. */
+.em-task.em-task-match-current {
+  /* Border se schválně nepřebarvuje — na prošlém tasku má zůstat vidět, že je
+     prošlý, a výběr nese outline kolem něj. */
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--interactive-accent) 35%, transparent);
 }
 
 /*
