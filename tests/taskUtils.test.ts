@@ -4,6 +4,8 @@ import {
   indexTaskDependencies,
   makeCompareTask,
   matchesDueFilter,
+  matchesSearch,
+  normalizeForSearch,
   sortTasksByDependencies,
 } from '../src/core/taskUtils.ts';
 import type { Task } from '../src/core/types.ts';
@@ -152,5 +154,50 @@ describe('matchesDueFilter', () => {
     expect(matchesDueFilter(task('2026-06-15'), 'selected', TODAY, SELECTED)).toBe(false); // today ≠ selected
     expect(matchesDueFilter(task('2026-06-21'), 'selected', TODAY, SELECTED)).toBe(false); // next day
     expect(matchesDueFilter(task(), 'selected', TODAY, SELECTED)).toBe(false); // no due
+  });
+});
+
+describe('normalizeForSearch', () => {
+  it('strips diacritics and lowercases', () => {
+    expect(normalizeForSearch('Správa Zálohy')).toBe('sprava zalohy');
+    expect(normalizeForSearch('ŘEŽ')).toBe('rez');
+  });
+
+  it('leaves plain ascii alone', () => {
+    expect(normalizeForSearch('Backup 42')).toBe('backup 42');
+  });
+});
+
+describe('matchesSearch', () => {
+  const t = task(undefined, {
+    text: 'Zálohovat databázi',
+    contextTags: ['work', 'infra'],
+    sourceFile: 'Daily/2026-06-15 pátek.md',
+  });
+
+  it('matches the task text ignoring case and diacritics', () => {
+    expect(matchesSearch(t, normalizeForSearch('zalohovat'))).toBe(true);
+    expect(matchesSearch(t, normalizeForSearch('DATABÁZI'))).toBe(true);
+  });
+
+  it('matches a substring in the middle of a word', () => {
+    expect(matchesSearch(t, normalizeForSearch('lohova'))).toBe(true);
+  });
+
+  it('matches context tags', () => {
+    expect(matchesSearch(t, normalizeForSearch('infra'))).toBe(true);
+  });
+
+  it('matches the source file name but not its folder', () => {
+    expect(matchesSearch(t, normalizeForSearch('patek'))).toBe(true);
+    expect(matchesSearch(t, normalizeForSearch('daily'))).toBe(false);
+  });
+
+  it('does not match an unrelated query', () => {
+    expect(matchesSearch(t, normalizeForSearch('deployment'))).toBe(false);
+  });
+
+  it('empty query matches nothing', () => {
+    expect(matchesSearch(t, '')).toBe(false);
   });
 });

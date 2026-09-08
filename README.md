@@ -34,6 +34,7 @@ Visualize tasks across your entire vault in a **5-quadrant Eisenhower matrix** (
 | **Undo grace period** | A 3-second window with a green countdown bar after you complete or cancel a task — click again to undo. |
 | **Compact mode** | Header toggle that shrinks every card to two lines (text + priority/due date) for a denser overview. |
 | **Show / hide done** | The "Done" toggle reveals or hides finished tasks (`[x]` + `[-]`); the task counter follows the toggle. |
+| **Task search** | The magnifier left of "Collapse all" opens a search box that scans the visible day's tasks (text, tags, source file name), ignoring case and diacritics. It jumps to each hit, expanding a collapsed quadrant or switching the Kanban board if needed, and shows hits that the active filters would otherwise hide. Enter / Shift+Enter (or the ▲ ▼ buttons) walk the hits, Esc closes the box and leaves the last hit visible. |
 | **Collapsible UI** | Collapse individual quadrants or the whole header to free up space — handy on mobile. |
 | **Deterministic sorting** | Within a quadrant: overdue → priority → due date → alphabetical. No accidental drag-reordering. |
 | **Daily note integration** | New tasks go under a **configurable section heading**; if today's daily note is missing it's created automatically, honoring your core "Daily notes" template (`{{date}}`, `{{title}}`, `{{time}}`). |
@@ -93,6 +94,7 @@ Priority ([Obsidian Tasks convention](https://publish.obsidian.md/tasks/Getting+
 | Previous / next day | The ← → arrows in the header, the calendar, or "Today" |
 | Collapse a quadrant | Click the ▼/▶ arrow next to the quadrant name |
 | Collapse the whole header | The ▲ button top-right (handy on mobile) |
+| Search tasks | The magnifier left of "Collapse all" → type · Enter / ▼ next hit · Shift+Enter / ▲ previous · Esc / ✕ close (the last hit stays visible) |
 | Show completed tasks | The "Done" toggle in the header |
 | Compact view | The "Compact" toggle in the header — 2-line cards |
 | Set task status | Right-click the card (or the status box) → *Mark as…* |
@@ -164,6 +166,8 @@ Missing something? [Open an issue](https://github.com/krcaljaroslav/4D-eisenhowe
 [Issues](https://github.com/krcaljaroslav/4D-eisenhower-matrix/issues) · Pull requests welcome.
 
 ## Changelog
+
+**1.0.31** — Added **task search**: a magnifier left of "Collapse all" opens a search box that scans the tasks of the day you're looking at — task text, context tags and the source file name — ignoring case and diacritics ("zaloha" finds "Zálohovat"). The view scrolls to each hit and highlights it; a collapsed quadrant expands and the Kanban board switches quadrants on its own so the hit is never hidden, and a hit that the active tag / due / "Done" filters would hide is shown anyway. Enter and Shift+Enter (or the ▲ ▼ buttons, for mobile) step through the hits with a `3/12` counter, Esc or ✕ closes the box and leaves the last hit visible.
 
 **1.0.30** — Added Obsidian Tasks dependencies (`🆔` / `⛔`): dependency-aware ordering, blocker badges and navigation, inline Before this / After this editing, completion warnings, filtering settings, and safe metadata preservation during edits.
 

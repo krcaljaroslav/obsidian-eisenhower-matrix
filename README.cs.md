@@ -34,6 +34,7 @@ Vizualizace tasků napříč celým vault-em v **5-polové Eisenhower matici** (
 | **Undo grace period** | 3sekundové okno se zeleným odpočtem po odškrtnutí/zrušení tasku — klik znovu = vrátit. |
 | **Kompaktní režim** | Přepínač v hlavičce zmenší každou kartu na dva řádky (text + priorita/due date) pro hustší přehled. |
 | **Zobrazit / skrýt hotové** | Přepínač „Done" odhalí nebo skryje hotové tasky (`[x]` + `[-]`); počítadlo tasků se přizpůsobí. |
+| **Hledání tasků** | Lupa vlevo od „Collapse all" rozbalí vyhledávací pole a prohledá tasky zobrazeného dne (text, tagy, jméno zdrojového souboru) bez ohledu na velikost písmen a diakritiku. Pohled na každou shodu přejede, sbalený kvadrant kvůli tomu rozbalí a Kanban přepne na správný kvadrant; shodu, kterou by aktivní filtry schovaly, ukáže i tak. Enter / Shift+Enter (nebo tlačítka ▲ ▼) chodí po shodách, Esc pole zavře a poslední nález nechá vidět. |
 | **Sbalitelné UI** | Sbal jednotlivé kvadranty nebo celou hlavičku pro víc místa — užitečné na mobilu. |
 | **Deterministické řazení** | V kvadrantu: overdue → priorita → due date → abecedně. Žádné nechtěné přeskupení dragem. |
 | **Daily note integrace** | Nové tasky jdou pod **konfigurovatelný nadpis sekce**; pokud dnešní daily note chybí, vytvoří se automaticky podle tvého core „Daily notes" template (`{{date}}`, `{{title}}`, `{{time}}`). |
@@ -93,6 +94,7 @@ Priorita ([Obsidian Tasks konvence](https://publish.obsidian.md/tasks/Getting+St
 | Předchozí / další den | Šipky ← → v headeru, kalendář, nebo „Dnes" |
 | Sbalit kvadrant | Klik na šipku ▼/▶ vedle názvu kvadrantu |
 | Sbalit celou hlavičku | ▲ vpravo nahoře (užitečné na mobilu) |
+| Hledat tasky | Lupa vlevo od „Collapse all" → piš · Enter / ▼ další shoda · Shift+Enter / ▲ předchozí · Esc / ✕ zavřít (poslední nález zůstane vidět) |
 | Zobrazit hotové tasky | Toggle „Done" v headeru |
 | Kompaktní zobrazení | Přepínač „Compact" v headeru — 2řádkové karty |
 | Změnit stav tasku | Pravý klik na kartu (nebo na status box) → *Mark as…* |
@@ -164,6 +166,8 @@ Něco postrádáš? [Issue na GitHubu](https://github.com/krcaljaroslav/4D-eisen
 [Issues](https://github.com/krcaljaroslav/4D-eisenhower-matrix/issues) · Pull requesty vítané.
 
 ## Changelog
+
+**1.0.31** — Přibylo **hledání tasků**: lupa vlevo od „Collapse all" rozbalí vyhledávací pole, které prohledá tasky zobrazeného dne — text tasku, kontextové tagy a jméno zdrojového souboru — bez ohledu na velikost písmen a diakritiku („zaloha" najde „Zálohovat"). Pohled na každou shodu přejede a zvýrazní ji; sbalený kvadrant se kvůli tomu sám rozbalí a Kanban přepne kvadrant, takže se shoda nemá kam schovat, a shodu, kterou by aktivní filtry tagů / due / „Done" skryly, plugin ukáže i tak. Enter a Shift+Enter (nebo tlačítka ▲ ▼ kvůli mobilu) procházejí shody s počítadlem `3/12`, Esc nebo ✕ pole zavře a poslední nález nechá vidět.
 
 **1.0.30** — Přidány závislosti Obsidian Tasks (`🆔` / `⛔`): řazení podle vazeb, badge a navigace blokátorů, inline editace Before this / After this, varování při dokončení, nastavení filtru a bezpečné zachování metadat při editaci.
 

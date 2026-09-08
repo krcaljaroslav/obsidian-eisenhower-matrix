@@ -23,6 +23,16 @@ export const DependencyNavigationContext = createContext<
 
 export const TaskEditingContext = createContext<{ app: App; tasks: Task[] } | null>(null);
 
+/**
+ * Zvýraznění shod z hledání. `matchKeys` = všechny shody (jemně),
+ * `currentKey` = ta, na kterou se právě skočilo (výrazně). `currentKey`
+ * přežívá i zavření hledání — po Esc má zůstat vidět, co jsem našla.
+ */
+export const SearchHighlightContext = createContext<{
+  matchKeys: Set<string>;
+  currentKey: string | null;
+}>({ matchKeys: new Set(), currentKey: null });
+
 export type DependencySelection = {
   beforeTasks: Task[];
   afterTasks: Task[];
@@ -83,6 +93,9 @@ export function TaskCard({
   const [editing, setEditing] = useState(false);
 
   const draggableId = `${task.sourceFile}:${task.lineIndex}`;
+  const search = useContext(SearchHighlightContext);
+  const isSearchMatch = search.matchKeys.has(draggableId);
+  const isCurrentSearchMatch = search.currentKey === draggableId;
   // Drag jen na desktopu. Na mobilu je touch-drag v Obsidian webview
   // nespolehlivý (long-press hijackne OS) — místo toho přesun přes
   // context menu „Přesunout do…".
@@ -322,12 +335,15 @@ export function TaskCard({
       onDoubleClick={handleDoubleClick}
       onContextMenu={showContextMenu}
       data-task-key={draggableId}
+      aria-current={isCurrentSearchMatch ? 'true' : undefined}
       className={`em-task ${overdue ? 'em-task-overdue' : ''} ${
         inGrace ? 'em-task-grace' : ''
       } ${editing ? 'em-task-editing' : ''} ${task.checked && !editing ? 'em-task-checked' : ''} ${
         task.status === '-' && !editing ? 'em-task-canceled' : ''
       } ${task.isBlocked && !editing ? 'em-task-blocked' : ''} ${
         isActiveDrag && !Platform.isMobile ? 'em-task-active-drag' : ''
+      } ${isSearchMatch ? 'em-task-match' : ''} ${
+        isCurrentSearchMatch ? 'em-task-match-current' : ''
       }`}
       title={
         editing

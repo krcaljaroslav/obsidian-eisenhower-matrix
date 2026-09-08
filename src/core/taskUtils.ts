@@ -214,6 +214,40 @@ export function matchesFilter(task: Task, selectedTags: string[]): boolean {
 }
 
 // ============================================================
+// Fulltext hledání napříč zobrazenými tasky
+// ============================================================
+
+/**
+ * Normalizace dotazu i textu tasku: bez diakritiky, lowercase.
+ * „Správa" tak najde „sprava" i „SPRÁVA" — Jaroslav píše dotazy
+ * často bez háčků a čárek.
+ */
+export function normalizeForSearch(value: string): string {
+  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+}
+
+/**
+ * Prohledávaný text jednoho tasku: text + kontextové tagy + jméno
+ * zdrojového souboru (bez cesty). Cesta záměrně ne — jinak by dotaz
+ * „daily" označil úplně všechno v `Daily notes/`.
+ */
+export function taskSearchHaystack(task: Task): string {
+  const fileName = task.sourceFile.split('/').pop() ?? task.sourceFile;
+  return normalizeForSearch(
+    `${task.text} ${task.contextTags.join(' ')} ${fileName}`,
+  );
+}
+
+/**
+ * `normalizedQuery` musí projít `normalizeForSearch` (voláme to jednou
+ * nad dotazem, ne pro každý task znovu). Prázdný dotaz nematchuje nic.
+ */
+export function matchesSearch(task: Task, normalizedQuery: string): boolean {
+  if (normalizedQuery === '') return false;
+  return taskSearchHaystack(task).includes(normalizedQuery);
+}
+
+// ============================================================
 // Rychlý filtr podle due date
 // ============================================================
 

@@ -189,6 +189,92 @@
   color: var(--text-normal);
 }
 
+/* === Hledání v hlavičce === */
+.em-search-toggle,
+.em-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--size-2-1);
+  border-radius: var(--radius-s);
+  box-shadow: none;
+}
+
+/* Dotyková plocha 44 px (WCAG 2.5.5) — hlavička se ovládá i na mobilu.
+   Na desktopu by tlačítka takhle velká rozhodila řádek, proto jen coarse. */
+@media (pointer: coarse) {
+  .em-search-toggle,
+  .em-search-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.em-search-toggle:hover,
+.em-search-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.em-search-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+}
+
+.em-search-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.em-search-icon .svg-icon {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.em-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: 0 var(--size-2-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: var(--background-primary);
+  max-width: 100%;
+}
+
+.em-search-input {
+  border: none;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  padding: var(--size-2-1) 0;
+  width: 12ch;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.em-search-input:focus {
+  box-shadow: none;
+}
+
+.em-search-input-empty {
+  color: var(--text-error);
+}
+
+.em-search-count {
+  font-size: var(--font-ui-smaller);
+  font-family: var(--font-monospace);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
 .em-toggle {
   display: inline-flex;
   align-items: center;
@@ -684,6 +770,17 @@
     border-color: var(--background-modifier-border);
     box-shadow: none;
   }
+}
+
+/* Nalezené tasky: všechny shody jemně, ta aktuální výrazně. Zvýraznění
+   drží, dokud hledání běží — na rozdíl od pulzu u dependency navigace. */
+.em-task-match {
+  background-color: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.em-task-match-current {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 55%, transparent);
 }
 
 /*

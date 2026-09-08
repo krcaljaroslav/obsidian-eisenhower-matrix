@@ -26,6 +26,8 @@ import {
   sortTasksByDependencies,
   matchesDueFilter,
   matchesFilter,
+  matchesSearch,
+  normalizeForSearch,
   UNTAGGED_FILTER,
   type DueFilter,
 } from '../core/taskUtils.ts';
@@ -33,8 +35,10 @@ import { Matrix } from '../components/Matrix.tsx';
 import { KanbanView } from '../components/KanbanView.tsx';
 import { FilterBar } from '../components/FilterBar.tsx';
 import { DateNav } from '../components/DateNav.tsx';
+import { SearchBox } from '../components/SearchBox.tsx';
 import {
   DependencyNavigationContext,
+  SearchHighlightContext,
   TaskEditingContext,
   TaskCardOverlay,
   GRACE_MS,
@@ -152,6 +156,22 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   const [kanbanQuadrant, setKanbanQuadrant] = useState<Quadrant | null>(
     plugin.settings.kanbanQuadrant,
   );
+  // Hledání (nepersistuje se — po otevření view je vždy zavřené a prázdné)
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIndex, setSearchIndex] = useState(0);
+  /** Roste s každým skokem — ať „další" na jediné shodě zase odscrolluje. */
+  const [searchJump, setSearchJump] = useState(0);
+  /**
+   * Poslední nalezený task; po zavření hledání zůstává vidět (a přes filtr).
+   * Text si držíme spolu s klíčem: `sourceFile:lineIndex` se po editaci
+   * souboru může posunout na jiný task a pin by pak ukazoval na cizí kartu.
+   */
+  const [pinnedTask, setPinnedTask] = useState<{ key: string; text: string } | null>(
+    null,
+  );
+  const lastScrolledRef = useRef<string | null>(null);
+
   const [dayChangedBanner, setDayChangedBanner] = useState<string | null>(() => {
     const last = plugin.settings.lastOpenedDate;
     return last && last !== today ? last : null;
@@ -479,19 +499,56 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   );
 
   // === Derived state ===
+  const normalizedQuery = useMemo(
+    () => normalizeForSearch(searchQuery.trim()),
+    [searchQuery],
+  );
+
+  /**
+   * Pin platí, jen dokud na jeho řádku sedí i text — po refetchi (vložený
+   * nebo smazaný řádek) se jinak drží cizí task. Když sedět přestane, pin
+   * tiše zaniká.
+   */
+  const pinnedTaskKey = useMemo(() => {
+    if (!pinnedTask) return null;
+    const still = tasks.find(
+      (t) => taskKey(t.sourceFile, t.lineIndex) === pinnedTask.key,
+    );
+    return still && still.text === pinnedTask.text ? pinnedTask.key : null;
+  }, [pinnedTask, tasks]);
+
+  const passesFilters = useCallback(
+    (t: Task): boolean => {
+      if (plugin.settings.hideBlockedTasks && t.isBlocked) return false;
+      if (!matchesFilter(t, selectedTags)) return false;
+      if (!matchesDueFilter(t, dueFilter, today, date)) return false;
+      if (showCompleted) return true;
+      // "Closed" = done ([x]) i canceled ([-]) — oba schované, pokud
+      // uživatel nezapne přepínač "Done" v hlavičce.
+      if (!isClosedStatus(t.status)) return true;
+      return graceMap.has(taskKey(t.sourceFile, t.lineIndex));
+    },
+    [plugin, selectedTags, dueFilter, today, date, showCompleted, graceMap],
+  );
+
+  /** Co projde filtry — bez ohledu na hledání. Tohle je číslo ve filter baru. */
+  const filteredTasks = useMemo(
+    () => tasks.filter(passesFilters),
+    [tasks, passesFilters],
+  );
+
   const visibleTasks = useMemo(
     () =>
       tasks.filter((t) => {
-        if (plugin.settings.hideBlockedTasks && t.isBlocked) return false;
-        if (!matchesFilter(t, selectedTags)) return false;
-        if (!matchesDueFilter(t, dueFilter, today, date)) return false;
-        if (showCompleted) return true;
-        // "Closed" = done ([x]) i canceled ([-]) — oba schované, pokud
-        // uživatel nezapne přepínač "Done" v hlavičce.
-        if (!isClosedStatus(t.status)) return true;
-        return graceMap.has(taskKey(t.sourceFile, t.lineIndex));
+        // Shoda z hledání (a poslední nalezený task) projde i přes filtry,
+        // „Done" a hideBlocked — jinak by hledání mlčky nic nenašlo
+        // a vypadalo by to jako rozbité. Do počtu ve filter baru se ale
+        // taková karta nezapočítá, ať číslo dál popisuje filtr.
+        if (normalizedQuery !== '' && matchesSearch(t, normalizedQuery)) return true;
+        if (taskKey(t.sourceFile, t.lineIndex) === pinnedTaskKey) return true;
+        return passesFilters(t);
       }),
-    [tasks, selectedTags, dueFilter, today, date, showCompleted, graceMap, plugin],
+    [tasks, passesFilters, normalizedQuery, pinnedTaskKey],
   );
 
   const sortedVisibleTasks = useMemo(
@@ -500,6 +557,107 @@ export function MatrixApp({ app, repo, plugin }: Props) {
       : [...visibleTasks].sort(makeCompareTask(today)),
     [visibleTasks, today, plugin],
   );
+
+  // === Hledání ===
+  // Shody v pořadí, v jakém jsou vykreslené — „další" tak jde odshora dolů.
+  const searchMatches = useMemo(() => {
+    if (normalizedQuery === '') return [];
+    return sortedVisibleTasks
+      .filter((t) => matchesSearch(t, normalizedQuery))
+      .map((t) => taskKey(t.sourceFile, t.lineIndex));
+  }, [sortedVisibleTasks, normalizedQuery]);
+
+  const searchMatchKeys = useMemo(() => new Set(searchMatches), [searchMatches]);
+
+  const clampedIndex =
+    searchMatches.length === 0 ? 0 : Math.min(searchIndex, searchMatches.length - 1);
+  const currentMatchKey = searchMatches[clampedIndex] ?? null;
+
+  // Memoizované, ať se identita contextu mění jen se shodami — jinak by
+  // každý stisk klávesy překreslil všechny karty i beze změny výsledků.
+  const searchHighlight = useMemo(
+    () => ({
+      matchKeys: searchMatchKeys,
+      currentKey: searchOpen ? currentMatchKey : pinnedTaskKey,
+    }),
+    [searchMatchKeys, searchOpen, currentMatchKey, pinnedTaskKey],
+  );
+
+  // Nový dotaz → zpátky na první shodu.
+  useEffect(() => {
+    setSearchIndex(0);
+    setSearchJump((n) => n + 1);
+  }, [normalizedQuery]);
+
+  const goToMatch = useCallback(
+    (delta: number) => {
+      setSearchIndex((prev) => {
+        if (searchMatches.length === 0) return 0;
+        const from = Math.min(prev, searchMatches.length - 1);
+        return (from + delta + searchMatches.length) % searchMatches.length;
+      });
+      setSearchJump((n) => n + 1);
+    },
+    [searchMatches.length],
+  );
+
+  const closeSearch = useCallback(() => {
+    // Aktuální shoda zůstane vidět i po zavření (i kdyby ji schovával filtr).
+    const match = currentMatchKey
+      ? tasks.find((t) => taskKey(t.sourceFile, t.lineIndex) === currentMatchKey)
+      : undefined;
+    setPinnedTask(
+      match ? { key: taskKey(match.sourceFile, match.lineIndex), text: match.text } : null,
+    );
+    setSearchOpen(false);
+    setSearchQuery('');
+  }, [currentMatchKey, tasks]);
+
+  const openSearch = useCallback(() => {
+    setPinnedTask(null);
+    setSearchOpen(true);
+  }, []);
+
+  // Skok na aktuální shodu: rozbalit kvadrant / přepnout Kanban a odscrollovat.
+  // Efekt běží znovu po každém renderu, který kartu může zpřístupnit — dokud
+  // karta v DOM není, scroll se odloží (`lastScrolledRef` hlídá duplicity).
+  useEffect(() => {
+    if (!currentMatchKey) {
+      lastScrolledRef.current = null;
+      return;
+    }
+    const target = tasks.find(
+      (t) => taskKey(t.sourceFile, t.lineIndex) === currentMatchKey,
+    );
+    if (!target) return;
+
+    if (collapsed[target.quadrant]) {
+      setCollapsed((prev) => ({ ...prev, [target.quadrant]: false }));
+      return;
+    }
+    if (kanbanQuadrant !== null && kanbanQuadrant !== target.quadrant) {
+      setKanbanQuadrant(target.quadrant);
+      return;
+    }
+
+    const jumpId = `${currentMatchKey}#${searchJump}`;
+    if (lastScrolledRef.current === jumpId) return;
+
+    const card = Array.from(
+      appRootRef.current?.querySelectorAll<HTMLElement>('[data-task-key]') ?? [],
+    ).find((el) => el.dataset.taskKey === currentMatchKey);
+    if (!card) return;
+
+    lastScrolledRef.current = jumpId;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [currentMatchKey, searchJump, tasks, collapsed, kanbanQuadrant, sortedVisibleTasks]);
+
+  // Jiný den = jiný pohled; držet v něm starý nález nedává smysl. Změna
+  // filtrů pin ruší schválně: uživatel po zavření hledání sáhl na filtr,
+  // takže od té chvíle má rozhodovat filtr, ne starý nález.
+  useEffect(() => {
+    setPinnedTask(null);
+  }, [date, selectedTags, dueFilter, showCompleted]);
 
   const availableTags = useMemo(
     () =>
@@ -695,6 +853,17 @@ export function MatrixApp({ app, repo, plugin }: Props) {
   // když je hlavička sbalená (uživatel je chce mít po ruce vždy).
   const viewControls = (
     <>
+      <SearchBox
+        open={searchOpen}
+        query={searchQuery}
+        matchCount={searchMatches.length}
+        currentIndex={searchMatches.length === 0 ? 0 : clampedIndex + 1}
+        onOpen={openSearch}
+        onClose={closeSearch}
+        onQueryChange={setSearchQuery}
+        onNext={() => goToMatch(1)}
+        onPrev={() => goToMatch(-1)}
+      />
       <button
         type="button"
         onClick={anyCollapsed ? expandAll : collapseAll}
@@ -830,13 +999,14 @@ export function MatrixApp({ app, repo, plugin }: Props) {
           onDueFilter={toggleDueFilter}
           onClear={clearFilters}
           totalCount={totalUnfiltered}
-          filteredCount={sortedVisibleTasks.length}
+          filteredCount={filteredTasks.length}
         />
         </div>
         )}
 
         <TaskEditingContext.Provider value={{ app, tasks }}>
         <DependencyNavigationContext.Provider value={handleNavigateToDependency}>
+        <SearchHighlightContext.Provider value={searchHighlight}>
         <div className="em-app-body">
         {effectiveKanban ? (
           <KanbanView
@@ -886,6 +1056,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
           />
         )}
         </div>
+        </SearchHighlightContext.Provider>
         </DependencyNavigationContext.Provider>
         </TaskEditingContext.Provider>
       </div>
