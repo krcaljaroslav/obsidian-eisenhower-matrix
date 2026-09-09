@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDndMonitor, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { Menu, Platform, type PaneType } from 'obsidian';
-import { buildGraphLayout, cellToPoint, GRID, taskKey, type GridCell } from '../core/graphLayout.ts';
+import { buildGraphLayout, canToggleGraphBranch, cellToPoint, GRID, taskKey, type GridCell } from '../core/graphLayout.ts';
 import { buildDependencyIndex, canLinkTasks } from '../core/graphLinks.ts';
-import { isGraphCanvasBackground } from '../core/graphInteractions.ts';
+import { centeredScrollOffset, isGraphCanvasBackground } from '../core/graphInteractions.ts';
 import type { Priority, Quadrant, Task } from '../core/types.ts';
 import { isClosedStatus } from '../core/types.ts';
 import { showInfo } from '../obsidian-adapter/toast.ts';
@@ -30,6 +30,7 @@ const TaskCard = memo(UnmemoizedTaskCard);
 export function GraphView(props: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const initiallyCenteredRef = useRef(false);
   const [viewportWidth, setViewportWidth] = useState(800);
   const [panning, setPanning] = useState(false);
   const panRef = useRef<{ x: number; y: number; left: number; top: number; id: number } | null>(null);
@@ -51,6 +52,16 @@ export function GraphView(props: Props) {
     const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
     observer.observe(element); return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    if (initiallyCenteredRef.current) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    initiallyCenteredRef.current = true;
+    requestAnimationFrame(() => {
+      viewport.scrollLeft = centeredScrollOffset(viewport.scrollWidth, viewport.clientWidth);
+      viewport.scrollTop = centeredScrollOffset(viewport.scrollHeight, viewport.clientHeight);
+    });
+  }, [layout.size.width, layout.size.height, props.zoom]);
   useEffect(() => {
     if (!props.highlightKey) return;
     const card = canvasRef.current?.querySelector<HTMLElement>(`[data-task-key="${CSS.escape(props.highlightKey)}"]`);
@@ -182,7 +193,7 @@ export function GraphView(props: Props) {
   return <div className="em-graph">
     <div className="em-graph-toolbar">
       <button onClick={props.onBack}><Icon name="layout-grid" className="em-kanban-icon" /> Back to grid</button><button onClick={() => setCenteredZoom(Math.max(.25, props.zoom / 1.25))}>−</button><button onClick={() => setCenteredZoom(1)}>{Math.round(props.zoom * 100)} %</button><button onClick={() => setCenteredZoom(Math.min(2, props.zoom * 1.25))}>+</button><button onClick={fit}>Fit</button>
-      <button onClick={() => setAddPanel({ cell: { col: 0, row: -1 } })}>+ Task</button><button onClick={() => setCollapsedKeys(new Set())}>Expand all</button><button onClick={() => { props.onResetAll(); requestAnimationFrame(() => requestAnimationFrame(() => { const viewport = viewportRef.current; if (viewport) { viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2); viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2); } })); }}>Reset all positions</button>
+      <button onClick={() => setAddPanel({ cell: { col: 0, row: -1 } })}>+ Task</button><button onClick={() => setCollapsedKeys(new Set())}>Expand all</button><button onClick={() => { props.onResetAll(); requestAnimationFrame(() => requestAnimationFrame(() => { const viewport = viewportRef.current; if (viewport) { viewport.scrollLeft = centeredScrollOffset(viewport.scrollWidth, viewport.clientWidth); viewport.scrollTop = centeredScrollOffset(viewport.scrollHeight, viewport.clientHeight); } })); }}>Reset all positions</button>
     </div>
     <div ref={viewportRef} className={`em-graph-viewport ${panning ? 'em-graph-panning' : ''}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={stopPan} onPointerCancel={stopPan}>
       <div className="em-graph-scaler" style={{ width: layout.size.width * props.zoom, height: layout.size.height * props.zoom }}>
@@ -191,16 +202,16 @@ export function GraphView(props: Props) {
           <div className="em-graph-band-separator" style={{ top: layout.bandTop }}>No dependencies · {layout.nodes.filter((node) => node.inBand).length}</div>
           <ul className="em-graph-nodes">{layout.nodes.map((node) => {
             const point = cellToPoint(node.cell, { ...geometry, gapX: GRID.gapX, gapY: GRID.gapY, topRow: layout.topRow });
-            const hasBlockers = node.task.blockedByTasks.some((task) => nodeByKey.has(taskKey(task)));
+            const canToggleBranch = canToggleGraphBranch(node.task, collapsedKeys);
             return <TaskCard key={node.key} task={node.task} today={props.today} graceExpiresAt={props.graceMap.get(node.key)} isActiveDrag={props.activeTaskId === node.key} compact={props.compact} style={{ left: point.x, top: point.y, width: geometry.w, height: geometry.h }} className={`${node.manual ? 'em-task-manual' : ''} ${node.collapsed ? 'em-graph-task-collapsed' : ''} ${(!node.inSeed && props.selectedTags.length) || (isClosedStatus(node.task.status) && !props.graceMap.has(node.key)) ? 'em-task-dimmed' : ''}`} onToggle={() => props.onToggleTask(node.task)} onSetStatus={(status) => props.onSetStatus(node.task, status)} onSetDueDate={(due) => props.onSetDueDate(node.task, due)} onUpdateTask={(text, tags, options, dependencies) => props.onUpdateTask(node.task, text, tags, options, dependencies)} onOpenSource={(mode) => props.onOpenSource(node.task, mode)} onOpenLink={(link) => props.onOpenLink(node.task, link)} onMoveQuadrant={(quadrant) => props.onMoveQuadrant(node.task, quadrant)} createTagSuggest={props.createTagSuggest} extendMenu={(menu: Menu) => {
               menu.addItem((item) => item.setTitle('Add blocker below').setIcon('arrow-down-to-line').onClick(() => setAddPanel({ cell: { col: node.cell.col, row: Math.max(0, node.cell.row - 1) }, target: node.task, kind: 'blocker' })));
               menu.addItem((item) => item.setTitle('Add dependent above').setIcon('arrow-up-to-line').onClick(() => setAddPanel({ cell: { col: node.cell.col, row: node.cell.row + 1 }, target: node.task, kind: 'dependent' })));
               if (node.manual) menu.addItem((item) => item.setTitle('Reset position').setIcon('rotate-ccw').onClick(() => void props.onSetPosition(node.task, null)));
-              if (hasBlockers) menu.addItem((item) => item.setTitle(node.collapsed ? 'Expand branch' : 'Collapse branch').onClick(() => setCollapsedKeys((current) => { const next = new Set(current); node.collapsed ? next.delete(node.key) : next.add(node.key); return next; })));
+              if (canToggleBranch) menu.addItem((item) => item.setTitle(node.collapsed ? 'Expand branch' : 'Collapse branch').onClick(() => setCollapsedKeys((current) => { const next = new Set(current); node.collapsed ? next.delete(node.key) : next.add(node.key); return next; })));
             }} onMouseEnter={() => setHoverKey(node.key)} onMouseLeave={() => setHoverKey(null)}>
               {node.manual && <span className="em-graph-manual-pin" title="Placed manually · right-click → Reset position"><Icon name="pin" /></span>}
               {!Platform.isMobile && (['top', 'right', 'bottom', 'left'] as const).map((side) => <button key={side} aria-label={`Create dependency from ${side} port`} className={`em-graph-port em-graph-port-${side}`} onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); const canvas = canvasRef.current; if (!canvas) return; const canvasRect = canvas.getBoundingClientRect(), portRect = event.currentTarget.getBoundingClientRect(); const start = { x: (portRect.left + portRect.width / 2 - canvasRect.left) / props.zoom, y: (portRect.top + portRect.height / 2 - canvasRect.top) / props.zoom }; setLinkDrag({ source: node.task, start, pointer: start, target: null }); }} />)}
-              {hasBlockers && <button aria-label={node.collapsed ? `Expand branch (${node.hiddenCount} hidden)` : 'Collapse branch'} className="em-graph-collapse" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setCollapsedKeys((current) => { const next = new Set(current); node.collapsed ? next.delete(node.key) : next.add(node.key); return next; }); }}>{node.collapsed ? '▼' : '▲'}</button>}
+              {canToggleBranch && <button aria-label={node.collapsed ? `Expand branch (${node.hiddenCount} hidden)` : 'Collapse branch'} className="em-graph-collapse" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setCollapsedKeys((current) => { const next = new Set(current); node.collapsed ? next.delete(node.key) : next.add(node.key); return next; }); }}>{node.collapsed ? '▼' : '▲'}</button>}
             </TaskCard>;
           })}</ul>
           {addPanel && <div className="em-graph-add-panel" onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} style={{ left: addPanel.cell.col * (geometry.w + GRID.gapX), top: cellToPoint(addPanel.cell, { ...geometry, gapX: GRID.gapX, gapY: GRID.gapY, topRow: layout.topRow }).y, width: geometry.w * 2 + GRID.gapX }}><AddTaskInput quadrant={addPanel.target?.quadrant ?? 'OPEN'} initialTags={initialTags} createTagSuggest={props.createTagSuggest} onCancel={() => setAddPanel(null)} onSubmit={async (input) => { if (addPanel.target && addPanel.kind) await props.onAddLinked(addPanel.target, addPanel.kind, input); else if (addPanel.cell.row < 0) await props.onAddTask(input); else await props.onAddAtCell(addPanel.cell, { ...input, quadrant: 'OPEN' }); setAddPanel(null); }} /></div>}

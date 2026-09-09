@@ -3,9 +3,11 @@ import {
   assignCells,
   buildGraphLayout,
   buildGraphNodeSet,
+  canToggleGraphBranch,
   computeHiddenByCollapse,
   cellToPoint,
   computeLevels,
+  GRID,
   layoutBand,
   routeEdge,
   taskKey,
@@ -55,6 +57,16 @@ describe('graph node selection and collapse', () => {
     link(blocker, left); link(blocker, right);
     expect(computeHiddenByCollapse([blocker, left, right], new Set([taskKey(left)])).hidden.has(taskKey(blocker))).toBe(false);
     expect(computeHiddenByCollapse([blocker, left, right], new Set([taskKey(left), taskKey(right)])).hidden.has(taskKey(blocker))).toBe(true);
+  });
+
+  it('keeps a collapsed node expandable after its blockers become hidden', () => {
+    const blocker = task('Blocker', 0); const dependent = task('Dependent', 1);
+    link(blocker, dependent);
+    const collapsedKeys = new Set([taskKey(dependent)]);
+    const collapsed = computeHiddenByCollapse([blocker, dependent], collapsedKeys);
+
+    expect(collapsed.hidden.has(taskKey(blocker))).toBe(true);
+    expect(canToggleGraphBranch(dependent, collapsedKeys)).toBe(true);
   });
 });
 
@@ -197,6 +209,13 @@ describe('assignCells', () => {
 });
 
 describe('buildGraphLayout', () => {
+  it('uses the wider compact geometry throughout the grid calculation', () => {
+    const nodes = Array.from({ length: 5 }, (_, index) => task(String(index), index));
+    const layout = buildGraphLayout({ tasks: nodes, seedKeys: new Set(nodes.map(taskKey)), showCompleted: false, graceKeys: new Set(), positions: {}, collapsedKeys: new Set(), compact: true, viewportWidth: 800, zoom: 1, today: '2026-09-08' });
+    expect(GRID.compact.w).toBe(272);
+    expect(layout.bandColumns).toBe(4);
+    expect(layout.size.width).toBe(4 * (GRID.compact.w + GRID.gapX));
+  });
   it('shows an otherwise unlinked task in its persisted manual cell', () => {
     const lone = task('Lone', 0, { id: 'lone' });
     const layout = buildGraphLayout({ tasks: [lone], seedKeys: new Set([taskKey(lone)]), showCompleted: false, graceKeys: new Set(), positions: { lone: { col: 3, row: 4 } }, collapsedKeys: new Set(), compact: false, viewportWidth: 800, zoom: 1, today: '2026-09-08' });

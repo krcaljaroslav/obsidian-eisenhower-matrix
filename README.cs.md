@@ -170,7 +170,7 @@ Něco postrádáš? [Issue na GitHubu](https://github.com/krcaljaroslav/4D-eisen
 
 ## Changelog
 
-**1.0.34** — Přidán graf závislostí vzniklý ve vývojovém cyklu 1.0.33, nyní s funkčním zakládáním tasků a našeptáváním tagů, ovládáním jednotlivých větví, sdíleným odpočtem dokončení, centrovaným resetem a zoomem, posuvníky a tažením plátna, konzistentním tlačítkem Back a širšími compact kartami bez nadbytečných textových popisků vazeb.
+**1.0.35** — Přidán graf závislostí vzniklý ve vývojovém cyklu 1.0.33, nyní s funkčním zakládáním tasků a našeptáváním tagů, ovládáním jednotlivých větví, sdíleným odpočtem dokončení, centrovaným resetem a zoomem, posuvníky a tažením plátna, konzistentním tlačítkem Back a širšími compact kartami bez nadbytečných textových popisků vazeb.
 
 **1.0.32** — Oprava neviditelného výběru hledání na prošlých taskech: aktuální shodu nově značí accentový outline kreslený vně karty, takže je vidět i přes červený rámeček overdue (a přes ztlumené blokované karty), místo aby mu podlehl. Červený rámeček zůstává, takže prošlá shoda dál vypadá jako prošlá.
 

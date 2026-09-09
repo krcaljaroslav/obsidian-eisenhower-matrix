@@ -17,7 +17,7 @@ export type GraphLayout = { nodes: GraphNode[]; edges: GraphEdge[]; hiddenKeys: 
 
 export const GRID = {
   full: { w: 240, h: 112 },
-  compact: { w: 224, h: 64 },
+  compact: { w: 272, h: 64 },
   gapX: 40,
   gapY: 48,
   bandGap: 40,
@@ -26,6 +26,10 @@ export const GRID = {
 
 export function taskKey(task: Task): string {
   return `${task.sourceFile}:${task.lineIndex}`;
+}
+
+export function canToggleGraphBranch(task: Task, collapsedKeys: Set<string>): boolean {
+  return task.blockedByTasks.length > 0 || collapsedKeys.has(taskKey(task));
 }
 
 export function validateGraphPositions(value: Record<string, GridCell>, warn: (key: string) => void = () => undefined): Record<string, GridCell> {

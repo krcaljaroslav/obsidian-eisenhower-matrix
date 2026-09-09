@@ -170,7 +170,7 @@ Missing something? [Open an issue](https://github.com/krcaljaroslav/4D-eisenhowe
 
 ## Changelog
 
-**1.0.34** — Added the dependency graph introduced during the 1.0.33 development cycle, now with working task creation and tag suggestions, per-branch expand/collapse controls, the shared completion countdown, centered reset and zoom, scrollbars and canvas panning, a consistent Back control, and roomier compact cards with redundant dependency labels hidden.
+**1.0.35** — Added the dependency graph introduced during the 1.0.33 development cycle, now with working task creation and tag suggestions, per-branch expand/collapse controls, the shared completion countdown, centered reset and zoom, scrollbars and canvas panning, a consistent Back control, and roomier compact cards with redundant dependency labels hidden.
 
 **1.0.32** — Fixed the search selection being invisible on overdue tasks: the current hit is now marked by an accent outline drawn outside the card, so it shows through the red overdue border (and the dimmed blocked style) instead of losing to it. The red border stays visible, so an overdue hit still reads as overdue.
 
