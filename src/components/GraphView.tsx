@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDndMonitor, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { Menu, Platform, type PaneType } from 'obsidian';
 import { buildGraphLayout, canToggleGraphBranch, cellToPoint, GRID, taskKey, type GridCell } from '../core/graphLayout.ts';
-import { buildDependencyIndex, canLinkTasks } from '../core/graphLinks.ts';
+import { buildDependencyIndex, canLinkTasks, graphLinkRoles, type GraphLinkPort } from '../core/graphLinks.ts';
 import { centeredScrollOffset, isGraphCanvasBackground } from '../core/graphInteractions.ts';
 import type { Priority, Quadrant, Task } from '../core/types.ts';
 import { isClosedStatus } from '../core/types.ts';
@@ -37,7 +37,7 @@ export function GraphView(props: Props) {
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(() => new Set());
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [addPanel, setAddPanel] = useState<{ cell: GridCell; target?: Task; kind?: 'blocker' | 'dependent' } | null>(null);
-  const [linkDrag, setLinkDrag] = useState<{ source: Task; start: { x: number; y: number }; pointer: { x: number; y: number }; target: Task | null } | null>(null);
+  const [linkDrag, setLinkDrag] = useState<{ source: Task; port: GraphLinkPort; start: { x: number; y: number }; pointer: { x: number; y: number }; target: Task | null } | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   const { setNodeRef } = useDroppable({ id: 'graph-canvas' });
   const geometry = props.compact ? GRID.compact : GRID.full;
@@ -120,15 +120,17 @@ export function GraphView(props: Props) {
       const card = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-task-key]');
       const target = props.tasks.find((task) => taskKey(task) === card?.dataset.taskKey) ?? null;
       canvas.querySelector('.em-graph-drop-target')?.classList.remove('em-graph-drop-target');
-      if (card && target && canLinkTasks(linkDrag.source, target, dependencyIndex).ok) card.classList.add('em-graph-drop-target');
+      const roles = target ? graphLinkRoles(linkDrag.port, linkDrag.source, target) : null;
+      if (card && roles && canLinkTasks(roles.blocker, roles.blocked, dependencyIndex).ok) card.classList.add('em-graph-drop-target');
       setLinkDrag((current) => current ? { ...current, pointer, target } : null);
     };
     const pointerUp = async () => {
       const current = linkDrag; canvasRef.current?.querySelector('.em-graph-drop-target')?.classList.remove('em-graph-drop-target'); setLinkDrag(null);
       if (!current.target) return;
-      const verdict = canLinkTasks(current.source, current.target, dependencyIndex);
+      const roles = graphLinkRoles(current.port, current.source, current.target);
+      const verdict = canLinkTasks(roles.blocker, roles.blocked, dependencyIndex);
       if (!verdict.ok) { showInfo(verdict.reason); return; }
-      try { await props.onLinkTasks(current.source, current.target); }
+      try { await props.onLinkTasks(roles.blocker, roles.blocked); }
       catch (error) { showInfo(`Could not save the dependency: ${String((error as Error).message ?? error)}`); }
     };
     window.addEventListener('pointermove', pointerMove);
@@ -198,7 +200,7 @@ export function GraphView(props: Props) {
     <div ref={viewportRef} className={`em-graph-viewport ${panning ? 'em-graph-panning' : ''}`} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={stopPan} onPointerCancel={stopPan}>
       <div className="em-graph-scaler" style={{ width: layout.size.width * props.zoom, height: layout.size.height * props.zoom }}>
         <div ref={(element) => { canvasRef.current = element; setNodeRef(element); }} className="em-graph-canvas" style={{ width: layout.size.width, height: layout.size.height, transform: `scale(${props.zoom})` }} onClick={(event) => { if (event.target === event.currentTarget || (event.target instanceof SVGSVGElement && event.target.classList.contains('em-graph-edges'))) setSelectedEdge(null); }} onDoubleClick={openEmptyCell}>
-          <svg className="em-graph-edges" width={layout.size.width} height={layout.size.height}><defs><marker id="em-graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" /></marker></defs>{layout.edges.map((edge) => { const edgeKey = `${edge.from}->${edge.to}`; return <path key={edgeKey} d={edge.points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ')} className={`em-graph-edge ${edge.resolved ? 'em-graph-edge-resolved' : ''} ${edge.cycle ? 'em-graph-edge-cycle' : ''} ${hoverKey === edge.from || hoverKey === edge.to ? 'em-graph-edge-active' : ''} ${selectedEdge === edgeKey ? 'em-graph-edge-selected' : ''}`} markerEnd="url(#em-graph-arrow)" onClick={(event) => { event.stopPropagation(); setSelectedEdge(edgeKey); }} onContextMenu={(event) => { event.preventDefault(); setSelectedEdge(edgeKey); const source = props.tasks.find((task) => taskKey(task) === edge.from), target = props.tasks.find((task) => taskKey(task) === edge.to); if (!source || !target) return; const menu = new Menu(); menu.addItem((item) => item.setTitle('Remove dependency').setIcon('trash-2').onClick(() => void props.onRemoveDependency(source, target))); menu.showAtMouseEvent(event.nativeEvent); }} />; })}{linkDrag && <line x1={linkDrag.start.x} y1={linkDrag.start.y} x2={linkDrag.pointer.x} y2={linkDrag.pointer.y} className={`em-graph-link-preview ${linkDrag.target && !canLinkTasks(linkDrag.source, linkDrag.target, dependencyIndex).ok ? 'em-graph-link-preview-invalid' : ''}`} />}</svg>
+          <svg className="em-graph-edges" width={layout.size.width} height={layout.size.height}><defs><marker id="em-graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" /></marker></defs>{layout.edges.map((edge) => { const edgeKey = `${edge.from}->${edge.to}`; return <path key={edgeKey} d={edge.points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ')} className={`em-graph-edge ${edge.resolved ? 'em-graph-edge-resolved' : ''} ${edge.cycle ? 'em-graph-edge-cycle' : ''} ${hoverKey === edge.from || hoverKey === edge.to ? 'em-graph-edge-active' : ''} ${selectedEdge === edgeKey ? 'em-graph-edge-selected' : ''}`} markerEnd="url(#em-graph-arrow)" onClick={(event) => { event.stopPropagation(); setSelectedEdge(edgeKey); }} onContextMenu={(event) => { event.preventDefault(); setSelectedEdge(edgeKey); const source = props.tasks.find((task) => taskKey(task) === edge.from), target = props.tasks.find((task) => taskKey(task) === edge.to); if (!source || !target) return; const menu = new Menu(); menu.addItem((item) => item.setTitle('Remove dependency').setIcon('trash-2').onClick(() => void props.onRemoveDependency(source, target))); menu.showAtMouseEvent(event.nativeEvent); }} />; })}{linkDrag && <line x1={linkDrag.start.x} y1={linkDrag.start.y} x2={linkDrag.pointer.x} y2={linkDrag.pointer.y} className={`em-graph-link-preview ${linkDrag.target && (() => { const roles = graphLinkRoles(linkDrag.port, linkDrag.source, linkDrag.target); return !canLinkTasks(roles.blocker, roles.blocked, dependencyIndex).ok; })() ? 'em-graph-link-preview-invalid' : ''}`} />}</svg>
           <div className="em-graph-band-separator" style={{ top: layout.bandTop }}>No dependencies · {layout.nodes.filter((node) => node.inBand).length}</div>
           <ul className="em-graph-nodes">{layout.nodes.map((node) => {
             const point = cellToPoint(node.cell, { ...geometry, gapX: GRID.gapX, gapY: GRID.gapY, topRow: layout.topRow });
@@ -210,7 +212,7 @@ export function GraphView(props: Props) {
               if (canToggleBranch) menu.addItem((item) => item.setTitle(node.collapsed ? 'Expand branch' : 'Collapse branch').onClick(() => setCollapsedKeys((current) => { const next = new Set(current); node.collapsed ? next.delete(node.key) : next.add(node.key); return next; })));
             }} onMouseEnter={() => setHoverKey(node.key)} onMouseLeave={() => setHoverKey(null)}>
               {node.manual && <span className="em-graph-manual-pin" title="Placed manually · right-click → Reset position"><Icon name="pin" /></span>}
-              {!Platform.isMobile && (['top', 'right', 'bottom', 'left'] as const).map((side) => <button key={side} aria-label={`Create dependency from ${side} port`} className={`em-graph-port em-graph-port-${side}`} onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); const canvas = canvasRef.current; if (!canvas) return; const canvasRect = canvas.getBoundingClientRect(), portRect = event.currentTarget.getBoundingClientRect(); const start = { x: (portRect.left + portRect.width / 2 - canvasRect.left) / props.zoom, y: (portRect.top + portRect.height / 2 - canvasRect.top) / props.zoom }; setLinkDrag({ source: node.task, start, pointer: start, target: null }); }} />)}
+              {!Platform.isMobile && (['top', 'bottom'] as const).map((port) => <button key={port} aria-label={`Create dependency from ${port} port`} className={`em-graph-port em-graph-port-${port}`} onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); const canvas = canvasRef.current; if (!canvas) return; const canvasRect = canvas.getBoundingClientRect(), portRect = event.currentTarget.getBoundingClientRect(); const start = { x: (portRect.left + portRect.width / 2 - canvasRect.left) / props.zoom, y: (portRect.top + portRect.height / 2 - canvasRect.top) / props.zoom }; setLinkDrag({ source: node.task, port, start, pointer: start, target: null }); }} />)}
               {canToggleBranch && <button aria-label={node.collapsed ? `Expand branch (${node.hiddenCount} hidden)` : 'Collapse branch'} className="em-graph-collapse" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setCollapsedKeys((current) => { const next = new Set(current); node.collapsed ? next.delete(node.key) : next.add(node.key); return next; }); }}>{node.collapsed ? '▼' : '▲'}</button>}
             </TaskCard>;
           })}</ul>

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { graphLinkRoles } from '../src/core/graphLinks.ts';
 import { parseTaskLine } from '../src/core/parser.ts';
 import type { Task } from '../src/core/types.ts';
 import { ObsidianTaskRepo } from '../src/obsidian-adapter/ObsidianTaskRepo.ts';
@@ -57,6 +58,23 @@ describe('ObsidianTaskRepo dependency updates', () => {
     const result = await new ObsidianTaskRepo(app as never).linkTasks(task(sourceRaw, 'source.md', 1), task(targetRaw, 'target.md'));
     expect(contents.get('source.md')).toBe(`keep\n${sourceRaw} 🆔 ${result.id}`);
     expect(contents.get('target.md')).toBe(`- [ ] #DO Target ⛔ ${result.id} ✅ 2026-09-08\nkeep`);
+  });
+
+  it('writes the blocker marker to the opposite row when dragging from the opposite port', async () => {
+    const sourceRaw = '- [ ] Source 🆔 source-id';
+    const targetRaw = '- [ ] Target 🆔 target-id';
+
+    for (const [port, blockedFile, blockerId] of [
+      ['top', 'target.md', 'source-id'],
+      ['bottom', 'source.md', 'target-id'],
+    ] as const) {
+      const { app, contents } = createApp({ 'source.md': sourceRaw, 'target.md': targetRaw });
+      const draggedTask = task(sourceRaw, 'source.md');
+      const targetTask = task(targetRaw, 'target.md');
+      const roles = graphLinkRoles(port, draggedTask, targetTask);
+      await new ObsidianTaskRepo(app as never).linkTasks(roles.blocker, roles.blocked);
+      expect(contents.get(blockedFile), `${port} port`).toContain(`⛔ ${blockerId}`);
+    }
   });
 
   it('rolls back the source when the target write fails', async () => {

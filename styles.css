@@ -40,9 +40,7 @@
 .em-graph-port { display: none; position: absolute; width: 10px; height: 10px; min-width: 10px; min-height: 10px; padding: 0; border: 1px solid var(--background-primary); border-radius: 50%; background: var(--interactive-accent); cursor: crosshair; z-index: 25; }
 .em-task:hover > .em-graph-port { display: block; }
 .em-graph-port-top { top: -5px; left: calc(50% - 5px); }
-.em-graph-port-right { right: -5px; top: calc(50% - 5px); }
 .em-graph-port-bottom { bottom: -5px; left: calc(50% - 5px); }
-.em-graph-port-left { left: -5px; top: calc(50% - 5px); }
 .em-graph .em-task-editing { height: auto !important; overflow: visible; z-index: 20; }
 .em-graph .em-task-blocked { opacity: 1; }
 .em-graph .em-task-dimmed { opacity: .45; }

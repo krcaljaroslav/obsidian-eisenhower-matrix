@@ -1,4 +1,4 @@
-const CANVAS_BACKGROUNDS = ['em-graph-viewport', 'em-graph-scaler', 'em-graph-canvas', 'em-graph-edges'];
+const CANVAS_BACKGROUNDS = ['em-graph-viewport', 'em-graph-scaler', 'em-graph-canvas', 'em-graph-edges', 'em-graph-nodes'];
 
 export function centeredScrollOffset(scrollSize: number, clientSize: number): number {
   return Math.max(0, (scrollSize - clientSize) / 2);

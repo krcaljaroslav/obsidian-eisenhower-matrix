@@ -3,6 +3,14 @@ import type { Task } from './types.ts';
 
 export type LinkRejection = 'A task cannot block itself' | 'This dependency already exists' | 'That would create a circular dependency' | 'That task is not editable from here';
 export type DependencyIndex = ReadonlyMap<string, Task>;
+export type GraphLinkPort = 'top' | 'bottom';
+export type GraphLinkRoles = { blocker: Task; blocked: Task };
+
+export function graphLinkRoles(port: GraphLinkPort, draggedTask: Task, targetTask: Task): GraphLinkRoles {
+  return port === 'top'
+    ? { blocker: draggedTask, blocked: targetTask }
+    : { blocker: targetTask, blocked: draggedTask };
+}
 
 export function buildDependencyIndex(tasks: Task[]): DependencyIndex {
   return new Map(tasks.map((task) => [taskKey(task), task]));

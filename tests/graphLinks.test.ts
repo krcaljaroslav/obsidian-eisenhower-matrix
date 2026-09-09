@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDependencyIndex, canLinkTasks } from '../src/core/graphLinks.ts';
+import { buildDependencyIndex, canLinkTasks, graphLinkRoles } from '../src/core/graphLinks.ts';
 import type { Task } from '../src/core/types.ts';
 
 function task(text: string, lineIndex: number): Task {
@@ -19,5 +19,17 @@ describe('canLinkTasks', () => {
     link(hidden, target);
     expect(canLinkTasks(target, source, buildDependencyIndex([source, target])))
       .toEqual({ ok: false, reason: 'That would create a circular dependency' });
+  });
+});
+
+describe('graphLinkRoles', () => {
+  it('makes a top-port drag source the blocker', () => {
+    const source = task('Source', 0), target = task('Target', 1);
+    expect(graphLinkRoles('top', source, target)).toEqual({ blocker: source, blocked: target });
+  });
+
+  it('makes a bottom-port drag target the blocker', () => {
+    const source = task('Source', 0), target = task('Target', 1);
+    expect(graphLinkRoles('bottom', source, target)).toEqual({ blocker: target, blocked: source });
   });
 });

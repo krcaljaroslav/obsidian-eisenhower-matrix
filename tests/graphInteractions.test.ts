@@ -6,8 +6,12 @@ const target = (...classes: string[]) => ({
 }) as unknown as EventTarget;
 
 describe('graph pointer isolation', () => {
-  it.each(['em-graph-viewport', 'em-graph-scaler', 'em-graph-canvas', 'em-graph-edges'])('allows panning from %s', (name) => {
+  it.each(['em-graph-viewport', 'em-graph-scaler', 'em-graph-canvas', 'em-graph-edges', 'em-graph-nodes'])('allows panning from %s', (name) => {
     expect(isGraphCanvasBackground(target(name))).toBe(true);
+  });
+
+  it('allows panning from the empty node layer covering the canvas', () => {
+    expect(isGraphCanvasBackground(target('em-graph-nodes'))).toBe(true);
   });
 
   it.each(['em-task', 'em-graph-port', 'em-graph-add-panel', 'em-add-input', 'em-btn-primary-accent'])('does not start canvas panning from %s', (name) => {
