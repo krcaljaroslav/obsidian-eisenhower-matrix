@@ -12,6 +12,8 @@ Visualize tasks across your entire vault in a **5-quadrant Eisenhower matrix** (
 
 <img src="docs/Dark_Kanban.png" alt="Kanban view — status columns" width="100%" />
 
+<img src="docs/Dark_Graph.png" alt="Dependency graph — goals above their blockers" width="100%" />
+
 <p align="center"><img src="docs/Mobile.png" alt="Mobile" width="360" /></p>
 
 ## Features

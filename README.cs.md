@@ -12,6 +12,8 @@ Vizualizace tasků napříč celým vault-em v **5-polové Eisenhower matici** (
 
 <img src="docs/Dark_Kanban.png" alt="Kanban zobrazení — status sloupce" width="100%" />
 
+<img src="docs/Dark_Graph.png" alt="Graph zobrazení — cíle nad svými blokátory" width="100%" />
+
 <p align="center"><img src="docs/Mobile.png" alt="Mobile" width="360" /></p>
 
 ## Co to umí
