@@ -17,7 +17,7 @@ export type GraphLayout = { nodes: GraphNode[]; edges: GraphEdge[]; hiddenKeys: 
 
 export const GRID = {
   full: { w: 240, h: 112 },
-  compact: { w: 200, h: 64 },
+  compact: { w: 224, h: 64 },
   gapX: 40,
   gapY: 48,
   bandGap: 40,

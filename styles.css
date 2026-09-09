@@ -13,7 +13,8 @@
 /* === Dependency graph === */
 .em-graph { display: flex; flex-direction: column; min-height: 0; }
 .em-graph-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-2-1); padding: var(--size-2-2); }
-.em-graph-viewport { overflow: auto; min-height: 420px; }
+.em-graph-viewport { overflow: scroll; min-height: 420px; cursor: grab; }
+.em-graph-viewport.em-graph-panning { cursor: grabbing; user-select: none; }
 .em-graph-scaler { position: relative; }
 .em-graph-canvas { position: relative; transform-origin: 0 0; }
 .em-graph-edges, .em-graph-nodes { position: absolute; inset: 0; margin: 0; padding: 0; }
@@ -26,7 +27,8 @@
 .em-graph-edge-resolved { stroke-dasharray: 6 5; }
 .em-graph-edge-cycle { stroke: var(--color-red); }
 .em-graph-edge-active { stroke: var(--interactive-accent); stroke-width: 2.5; }
-.em-graph .em-task { position: absolute; overflow: hidden; cursor: grab; box-sizing: border-box; }
+.em-graph .em-task { position: absolute; overflow: visible; cursor: grab; box-sizing: border-box; }
+.em-graph .em-task-row { overflow: hidden; height: 100%; }
 .em-graph .em-task-text:not(.em-task-text-compact) {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -52,9 +54,11 @@
 .em-graph .em-task-overdue { border-color: var(--color-red); }
 .em-graph-manual-pin { position: absolute; top: 4px; right: 4px; color: var(--text-muted); }
 .em-graph-manual-pin svg { width: 14px; height: 14px; }
-.em-graph-collapse { position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%); font-size: 10px; z-index: 2; }
+.em-graph-collapse { position: absolute; left: 50%; bottom: -34px; transform: translateX(-50%); width: 34px; height: 30px; min-width: 34px; padding: 0; border: 0; background: transparent; color: var(--text-muted); font-size: 20px; line-height: 30px; z-index: 24; }
+.em-graph-task-collapsed { outline: 2px dashed var(--interactive-accent); outline-offset: 2px; }
 .em-graph-band-separator { position: absolute; left: 0; right: 0; border-top: 1px solid var(--background-modifier-border); padding-top: 5px; color: var(--text-muted); background: var(--background-secondary); }
 .em-graph-add-panel { position: absolute; z-index: 30; background: var(--background-primary); border: 1px solid var(--interactive-accent); border-radius: var(--radius-m); padding: var(--size-4-2); }
+.em-graph .em-task-body-compact .em-dependency-badge { display: none; }
 .em-mobile .em-graph-viewport { overflow-x: auto; overflow-y: visible; }
 .em-mobile .em-graph-port { display: none !important; }
 

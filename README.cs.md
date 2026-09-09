@@ -170,6 +170,8 @@ Něco postrádáš? [Issue na GitHubu](https://github.com/krcaljaroslav/4D-eisen
 
 ## Changelog
 
+**1.0.34** — Přidán graf závislostí vzniklý ve vývojovém cyklu 1.0.33, nyní s funkčním zakládáním tasků a našeptáváním tagů, ovládáním jednotlivých větví, sdíleným odpočtem dokončení, centrovaným resetem a zoomem, posuvníky a tažením plátna, konzistentním tlačítkem Back a širšími compact kartami bez nadbytečných textových popisků vazeb.
+
 **1.0.32** — Oprava neviditelného výběru hledání na prošlých taskech: aktuální shodu nově značí accentový outline kreslený vně karty, takže je vidět i přes červený rámeček overdue (a přes ztlumené blokované karty), místo aby mu podlehl. Červený rámeček zůstává, takže prošlá shoda dál vypadá jako prošlá.
 
 **1.0.31** — Přibylo **hledání tasků**: lupa vlevo od „Collapse all" rozbalí vyhledávací pole, které prohledá tasky zobrazeného dne — text tasku, kontextové tagy a jméno zdrojového souboru — bez ohledu na velikost písmen a diakritiku („zaloha" najde „Zálohovat"). Pohled na každou shodu přejede a zvýrazní ji; sbalený kvadrant se kvůli tomu sám rozbalí a Kanban přepne kvadrant, takže se shoda nemá kam schovat, a shodu, kterou by aktivní filtry tagů / due / „Done" skryly, plugin ukáže i tak. Enter a Shift+Enter (nebo tlačítka ▲ ▼ kvůli mobilu) procházejí shody s počítadlem `3/12`, Esc nebo ✕ pole zavře a poslední nález nechá vidět.

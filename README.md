@@ -170,6 +170,8 @@ Missing something? [Open an issue](https://github.com/krcaljaroslav/4D-eisenhowe
 
 ## Changelog
 
+**1.0.34** — Added the dependency graph introduced during the 1.0.33 development cycle, now with working task creation and tag suggestions, per-branch expand/collapse controls, the shared completion countdown, centered reset and zoom, scrollbars and canvas panning, a consistent Back control, and roomier compact cards with redundant dependency labels hidden.
+
 **1.0.32** — Fixed the search selection being invisible on overdue tasks: the current hit is now marked by an accent outline drawn outside the card, so it shows through the red overdue border (and the dimmed blocked style) instead of losing to it. The red border stays visible, so an overdue hit still reads as overdue.
 
 **1.0.31** — Added **task search**: a magnifier left of "Collapse all" opens a search box that scans the tasks of the day you're looking at — task text, context tags and the source file name — ignoring case and diacritics ("zaloha" finds "Zálohovat"). The view scrolls to each hit and highlights it; a collapsed quadrant expands and the Kanban board switches quadrants on its own so the hit is never hidden, and a hit that the active tag / due / "Done" filters would hide is shown anyway. Enter and Shift+Enter (or the ▲ ▼ buttons, for mobile) step through the hits with a `3/12` counter, Esc or ✕ closes the box and leaves the last hit visible.

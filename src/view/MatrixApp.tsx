@@ -903,7 +903,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
       >
         {anyCollapsed ? 'Expand all' : 'Collapse all'}
       </button>}
-      <button type="button" onClick={() => setGraphView((current) => !current)} className={graphView ? 'em-kanban-btn-active' : ''} title="Dependency graph"><Icon name="workflow" className="em-kanban-icon" /> Graph</button>
+      <button type="button" onClick={() => setGraphView((current) => !current)} className={graphView ? 'em-kanban-btn-active' : ''} title={graphView ? 'Back to grid' : 'Dependency graph'}><Icon name={graphView ? 'layout-grid' : 'workflow'} className="em-kanban-icon" /> {graphView ? 'Back' : 'Graph'}</button>
       <label className="em-toggle">
         <input
           type="checkbox"
@@ -1047,7 +1047,7 @@ export function MatrixApp({ app, repo, plugin }: Props) {
             seedKeys={new Set(visibleTasks.map((task) => taskKey(task.sourceFile, task.lineIndex)))}
             selectedTags={selectedTags}
             showCompleted={showCompleted}
-            graceKeys={new Set(graceMap.keys())}
+            graceMap={graceMap}
             positions={graphPositions}
             zoom={graphZoom}
             compact={compactMode}
